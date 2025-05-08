@@ -162,7 +162,7 @@ namespace Dokkaebi.UI
 
         public void UpdatePreview(Vector2Int hoverPosition)
         {
-            SmartLogger.Log($"[PreviewManager.UpdatePreview] ENTRY. Hover Pos: {hoverPosition}. isAbilityTargetingMode: {isAbilityTargetingMode}, Selected Ability: {(selectedAbility != null ? selectedAbility.displayName : "NULL")}", LogCategory.UI, this);
+//            SmartLogger.Log($"[PreviewManager.UpdatePreview] ENTRY. Hover Pos: {hoverPosition}. isAbilityTargetingMode: {isAbilityTargetingMode}, Selected Ability: {(selectedAbility != null ? selectedAbility.displayName : "NULL")}", LogCategory.UI, this); // NOTE: This method is called every frame via InputManager.Update. Avoid logging here unless throttled.
             if (isAbilityTargetingMode)
             {
                 UpdateAbilityPreview(hoverPosition);

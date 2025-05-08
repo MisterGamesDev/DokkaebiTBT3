@@ -967,18 +967,23 @@ namespace Dokkaebi.Zones
         /// </summary>
         public List<ZoneInstance> GetAllActiveZoneInstances()
         {
-            SmartLogger.Log($"[ZoneManager.GetAllActiveZoneInstances] Collecting active zone instances.", LogCategory.Zone, this);
-            List<ZoneInstance> activeInstances = new List<ZoneInstance>();
-
+            SmartLogger.Log("[ZoneManager.GetAllActiveZoneInstances ENTRY]", LogCategory.Zone, this);
+            var activeInstances = new List<ZoneInstance>();
             if (zonesByPosition != null)
             {
-                // Iterate through all lists of zones stored by position
                 foreach (var zonesListAtPos in zonesByPosition.Values)
                 {
+                    SmartLogger.Log($"Processing zone list at position... Found {zonesListAtPos?.Count ?? 0} zones.", LogCategory.Zone, this);
                     if (zonesListAtPos != null)
                     {
-                        // Add all active ZoneInstances from this position's list
-                        activeInstances.AddRange(zonesListAtPos.Where(zone => zone != null && zone.IsActive));
+                        foreach (var zone in zonesListAtPos)
+                        {
+                            SmartLogger.Log($"Checking ZoneInstance {zone?.DisplayName ?? "NULL"} (ID: {zone?.GetInstanceID() ?? -1}).", LogCategory.Zone, this);
+                            if (zone != null && zone.IsActive)
+                            {
+                                activeInstances.Add(zone);
+                            }
+                        }
                     }
                 }
             }
@@ -986,8 +991,7 @@ namespace Dokkaebi.Zones
             {
                 SmartLogger.LogWarning("[ZoneManager.GetAllActiveZoneInstances] zonesByPosition dictionary is null!", LogCategory.Zone, this);
             }
-
-            SmartLogger.Log($"[ZoneManager.GetAllActiveZoneInstances] Found {activeInstances.Count} active zone instances.", LogCategory.Zone, this);
+            SmartLogger.Log($"[ZoneManager.GetAllActiveZoneInstances EXIT] Found {activeInstances.Count} active zone instances.", LogCategory.Zone, this);
             return activeInstances;
         }
     }

@@ -29,37 +29,37 @@ namespace Dokkaebi.Units
         private int unitId = -1;
         private int movementRange = 3;
         private int teamId = 0;
-        
+
         [Header("Stats")]
         private int maxHealth = 100;
         private int currentHealth;
         private int maxAura = 10;
         private float currentMP = 0f;
-        
+
         // Add unit-specific Aura fields
         [Header("Unit Aura")]
         [SerializeField] private int currentUnitAura;
         [SerializeField] private int maxUnitAura;
-        
+
         // Unit properties
         private GridPosition gridPosition;
         private GridPosition positionAtTurnStart;
-        
+
         // Component references
         private DokkaebiMovementHandler movementHandler;
-        
+
         // Turn-based action tracking
         private bool hasPendingMovement = false;
         public bool HasPendingMovement => hasPendingMovement;
         private GridPosition? targetPosition;
         private bool hasMovedThisTurn = false;
-        
+
         // Interaction state
         private bool isInteractable = true;
-        
+
         // Movement Points
         [SerializeField] private int maxMP = 4;
-        
+
         // Events
         public event Action<int, DamageType> OnDamageTaken;
         public event Action<int> OnHealingReceived;
@@ -67,10 +67,10 @@ namespace Dokkaebi.Units
         public event Action<IStatusEffectInstance> OnStatusEffectApplied;
         public event Action<IStatusEffectInstance> OnStatusEffectRemoved;
         public event Action<IDokkaebiUnit, GridPosition, GridPosition> OnUnitMoved;
-        
+
         // Add unit-specific Aura event
         public event Action<int, int> OnUnitAuraChanged; // (oldAura, newAura)
-        
+
         // State tracking
         private bool isDefeated = false;
 
@@ -129,26 +129,14 @@ namespace Dokkaebi.Units
 
         public void AddStatusEffect(IStatusEffectInstance effect)
         {
+            SmartLogger.Log($"[DokkaebiUnit.AddStatusEffect ENTRY] Unit: {DisplayName}, Effect Type: {effect?.StatusEffectType.ToString() ?? "NULL"}", LogCategory.Unit, this);
             // Log every effect's type
             SmartLogger.Log($"[DokkaebiUnit.AddStatusEffect] Unit {DisplayName} (ID: {UnitId}) received effect of type: {effect?.StatusEffectType.ToString() ?? "NULL"}", LogCategory.Unit, this);
-
-            // DEBUG LOG: Trace Movement effects (BurningStrideMovementBuff is of type Movement)
-            if (effect?.StatusEffectType == StatusEffectType.Movement)
-            {
-                string effectName = effect?.Effect?.name ?? effect?.StatusEffectType.ToString() ?? "<null>";
-                string unitName = this.DisplayName ?? this.name;
-                int movementModifier = 0;
-                if (effect?.Effect is StatusEffectData data)
-                    movementModifier = data.movementRangeModifier;
-                string stack = UnityEngine.StackTraceUtility.ExtractStackTrace();
-                SmartLogger.Log($"[DEBUG][AddStatusEffect] Movement Effect: '{effectName}' (modifier: {movementModifier}) added to '{unitName}'.\nStackTrace:\n{stack}", LogCategory.Ability, this);
-            }
-
-            SmartLogger.Log($"[DokkaebiUnit.AddStatusEffect] ENTRY for unit {DisplayName} (ID: {UnitId}). Attempting to add effect: {effect?.StatusEffectType.ToString() ?? "NULL EFFECT"}", LogCategory.Unit, this);
 
             if (effect == null)
             {
                 SmartLogger.LogWarning("[DokkaebiUnit.AddStatusEffect] Attempted to add null effect", LogCategory.Unit, this);
+                SmartLogger.Log($"[DokkaebiUnit.AddStatusEffect EXIT] Unit: {DisplayName}, Effect Type: NULL (null effect passed)", LogCategory.Unit, this);
                 return;
             }
 
@@ -159,16 +147,23 @@ namespace Dokkaebi.Units
                 bool alreadyHasEffect = statusEffects.Any(e => e.StatusEffectType == effect.StatusEffectType);
                 if (alreadyHasEffect)
                 {
+                    SmartLogger.Log($"[DokkaebiUnit.AddStatusEffect] Duplicate non-stackable effect skipped for unit {DisplayName}, Effect Type: {effect.StatusEffectType}", LogCategory.Unit, this);
                     SmartLogger.LogWarning($"[DokkaebiUnit.AddStatusEffect] Unit {DisplayName} already has non-stackable effect {effect.StatusEffectType}. Skipping addition.", LogCategory.Unit, this);
+                    SmartLogger.Log($"[DokkaebiUnit.AddStatusEffect EXIT] Unit: {DisplayName}, Effect Type: {effect.StatusEffectType} (duplicate non-stackable skipped)", LogCategory.Unit, this);
                     return; // Do not add duplicate non-stackable effects
                 }
             }
             // --- ADD DUPLICATE CHECK END ---
 
+            SmartLogger.Log($"[DokkaebiUnit.AddStatusEffect] Before adding effect {effect.StatusEffectType} to statusEffects list. Current count: {statusEffects.Count}", LogCategory.Unit, this);
             statusEffects.Add(effect); // <--- Adds the effect to the list
+            SmartLogger.Log($"[DokkaebiUnit.AddStatusEffect] After adding effect {effect.StatusEffectType} to statusEffects list. New count: {statusEffects.Count}", LogCategory.Unit, this);
             SmartLogger.Log($"[DokkaebiUnit.AddStatusEffect] Added effect {effect.StatusEffectType} to unit {DisplayName}. Total effects now: {statusEffects.Count}", LogCategory.Unit, this);
+            SmartLogger.Log($"[DokkaebiUnit.AddStatusEffect] Before calling RaiseStatusEffectApplied for effect {effect.StatusEffectType}", LogCategory.Unit, this);
             RaiseStatusEffectApplied(effect); // <--- Raises the event
+            SmartLogger.Log($"[DokkaebiUnit.AddStatusEffect] After calling RaiseStatusEffectApplied for effect {effect.StatusEffectType}", LogCategory.Unit, this);
             SmartLogger.Log($"[DokkaebiUnit.AddStatusEffect] EXIT for unit {DisplayName}. Effect added and event raised.", LogCategory.Unit, this);
+            SmartLogger.Log($"[DokkaebiUnit.AddStatusEffect EXIT] Unit: {DisplayName}, Effect Type: {effect?.StatusEffectType.ToString() ?? "NULL"}", LogCategory.Unit, this);
         }
 
         public void RemoveStatusEffect(IStatusEffectInstance effect)
@@ -250,14 +245,14 @@ namespace Dokkaebi.Units
         private void Awake()
         {
             SmartLogger.Log($"[DokkaebiUnit] Awake called on {gameObject.name}", LogCategory.Unit, this);
-            
+
             // Ensure proper layer setup
             if (gameObject.layer != LayerMask.NameToLayer("Unit"))
             {
                 gameObject.layer = LayerMask.NameToLayer("Unit");
                 SmartLogger.Log($"[DokkaebiUnit] Set layer to Unit for {gameObject.name}", LogCategory.Unit, this);
             }
-            
+
             // Validate collider setup
             var collider = GetComponent<Collider>();
             if (collider == null)
@@ -265,21 +260,21 @@ namespace Dokkaebi.Units
                 SmartLogger.LogError($"[DokkaebiUnit] No Collider found on {gameObject.name}. Adding BoxCollider.", LogCategory.Unit, this);
                 collider = gameObject.AddComponent<BoxCollider>();
             }
-            
+
             // Ensure collider is enabled
             if (!collider.enabled)
             {
                 collider.enabled = true;
                 SmartLogger.Log($"[DokkaebiUnit] Enabled collider on {gameObject.name}", LogCategory.Unit, this);
             }
-            
+
             // Initialize health
             currentHealth = maxHealth;
             SmartLogger.Log($"[DokkaebiUnit] Initialized health - Max: {maxHealth}, Current: {currentHealth}", LogCategory.Unit, this);
-            
+
             // Initialize unit Aura
             SmartLogger.Log($"[DokkaebiUnit] Initialized unit Aura - Max: {maxUnitAura}, Current: {currentUnitAura}", LogCategory.Unit, this);
-            
+
             // Get or add movement handler
             movementHandler = GetComponent<DokkaebiMovementHandler>();
             if (movementHandler == null)
@@ -288,11 +283,11 @@ namespace Dokkaebi.Units
                 SmartLogger.Log("[DokkaebiUnit] Added DokkaebiMovementHandler component", LogCategory.Unit, this);
             }
         }
-        
+
         private void Start()
         {
             SmartLogger.Log($"[DokkaebiUnit] Start called on {gameObject.name}", LogCategory.Unit, this);
-            
+
             // Register with grid manager
             if (GridManager.Instance != null)
             {
@@ -307,11 +302,11 @@ namespace Dokkaebi.Units
             // Subscribe to being attacked event for reactive abilities
             OnBeingAttacked += HandleBeingAttacked;
         }
-        
+
         private void OnDestroy()
         {
             SmartLogger.Log($"[DokkaebiUnit.OnDestroy] Unit {unitName} (ID: {unitId}) is being destroyed", LogCategory.Unit, this);
-            
+
             // Clear from GridManager
             if (GridManager.Instance != null)
             {
@@ -373,7 +368,7 @@ namespace Dokkaebi.Units
             }
         }
         #endregion
-        
+
         // Public API
         public bool IsPlayer() => isPlayerUnit;
         public int GetUnitId() => unitId;
@@ -388,16 +383,16 @@ namespace Dokkaebi.Units
         // Add unit-specific Aura getters
         public int GetCurrentUnitAura() => currentUnitAura;
         public int GetMaxUnitAura() => maxUnitAura;
-        
+
         public GridPosition GetGridPosition() => gridPosition;
-        
+
         /// <summary>
         /// Set the unit's grid position and update its world position
         /// </summary>
         public void SetGridPosition(GridPosition position)
         {
             SmartLogger.Log($"[DokkaebiUnit.SetGridPosition] ENTRY - Input Position: {position}, Current GridPosition: {gridPosition}", LogCategory.Unit, this);
-            if (position == gridPosition) 
+            if (position == gridPosition)
             {
                 SmartLogger.Log($"[DokkaebiUnit.SetGridPosition] Early return - position matches current gridPosition: {position}", LogCategory.Unit, this);
                 return;
@@ -467,7 +462,7 @@ namespace Dokkaebi.Units
             SmartLogger.Log($"[DokkaebiUnit.SetGridPosition] EXIT - Final Transform Position: {transform.position}, Final GridPosition: {gridPosition}", LogCategory.Unit, this);
         }
 
-        
+
 
         /// <summary>
         /// Update the unit's grid position based on its current world position
@@ -475,11 +470,11 @@ namespace Dokkaebi.Units
         public void UpdateGridPosition(GridPosition newPosition)
         {
             if (newPosition == gridPosition) return;
-            
+
             // Update grid position
             var oldPosition = gridPosition;
             gridPosition = newPosition;
-            
+
             // Update grid manager
             if (GridManager.Instance != null)
             {
@@ -634,7 +629,7 @@ namespace Dokkaebi.Units
         public void ReduceCooldowns()
         {
             SmartLogger.Log($"[ReduceCooldowns] Starting cooldown reduction for Unit: {unitName}", LogCategory.Unit, this);
-            
+
             var cooldownKeys = abilityCooldowns.Keys.ToList();
             foreach (var abilityId in cooldownKeys)
             {
@@ -642,9 +637,9 @@ namespace Dokkaebi.Units
                 {
                     int oldCooldown = abilityCooldowns[abilityId];
                     abilityCooldowns[abilityId]--;
-                    
+
                     SmartLogger.Log($"[ReduceCooldowns] Unit: {unitName}, Ability: {abilityId}, Old Cooldown: {oldCooldown}, New Cooldown: {abilityCooldowns[abilityId]}", LogCategory.Unit, this);
-                    
+
                     if (abilityCooldowns[abilityId] <= 0)
                     {
                         abilityCooldowns.Remove(abilityId);
@@ -652,7 +647,7 @@ namespace Dokkaebi.Units
                     }
                 }
             }
-            
+
             SmartLogger.Log($"[ReduceCooldowns] Completed cooldown reduction for Unit: {unitName}", LogCategory.Unit, this);
         }
 
@@ -729,12 +724,12 @@ namespace Dokkaebi.Units
         public bool CanUseAbility(AbilityData abilityData)
         {
             if (abilityData == null) return false;
-            
+
             bool hasEnoughAura = HasEnoughUnitAura(abilityData.auraCost);
             bool isOffCooldown = !IsOnCooldown(abilityData.abilityId);
-            
+
             SmartLogger.Log($"[CanUseAbility] LOG_CHECK: Unit: {unitName}, Ability: {abilityData?.displayName}, HasEnoughAura: {hasEnoughAura}, IsOffCooldown: {isOffCooldown}", LogCategory.Ability, this.gameObject);
-            
+
             return hasEnoughAura && isOffCooldown;
         }
 
@@ -784,12 +779,12 @@ namespace Dokkaebi.Units
             if (instance is StatusEffectInstance effectInstance)
             {
                 SmartLogger.Log($"[DokkaebiUnit.RaiseStatusEffectApplied] About to invoke OnStatusEffectApplied for effect: {effectInstance.StatusEffectType} on unit: {DisplayName}", LogCategory.Unit, this);
-                
+
                 int subscriberCount = (OnStatusEffectApplied != null) ? OnStatusEffectApplied.GetInvocationList().Length : 0;
                 SmartLogger.Log($"[DokkaebiUnit.RaiseStatusEffectApplied] Number of subscribers to OnStatusEffectApplied: {subscriberCount}", LogCategory.Unit, this);
-                
+
                 OnStatusEffectApplied?.Invoke(instance);
-                
+
                 SmartLogger.Log($"[DokkaebiUnit.RaiseStatusEffectApplied] OnStatusEffectApplied event invoked for effect: {effectInstance.StatusEffectType}", LogCategory.Unit, this);
             }
             else
@@ -865,7 +860,7 @@ namespace Dokkaebi.Units
             bool hasData = _unitDefinitionData != null;
             bool hasPrefab = hasData && _unitDefinitionData.afterimagePrefab != null;
             // Add this specific log:
-            SmartLogger.Log($"[HasAfterimagePrefabDefined] Check for {unitName}. HasData: {hasData}, HasPrefabInData: {hasPrefab}", LogCategory.Unit, this); 
+            SmartLogger.Log($"[HasAfterimagePrefabDefined] Check for {unitName}. HasData: {hasData}, HasPrefabInData: {hasPrefab}", LogCategory.Unit, this);
             return hasPrefab;
         }
 
@@ -880,7 +875,7 @@ namespace Dokkaebi.Units
             // Add/verify this log:
             SmartLogger.Log($"[ShowAfterimage ENTRY] Called for {unitName}. Prefab from Data is Null: {(prefabToUse == null)}", LogCategory.Unit, this);
 
-            if (prefabToUse == null) 
+            if (prefabToUse == null)
             {
                 SmartLogger.LogWarning($"[DokkaebiUnit.ShowAfterimage] No afterimage prefab assigned for unit {unitName} (ID: {unitId})", LogCategory.Unit);
                 return;
@@ -892,7 +887,7 @@ namespace Dokkaebi.Units
             if (GridManager.Instance != null)
             {
                 Vector3 worldPosition = GridManager.Instance.GridToWorldPosition(position);
-                currentAfterimageInstance = Instantiate(prefabToUse, worldPosition, Quaternion.identity); 
+                currentAfterimageInstance = Instantiate(prefabToUse, worldPosition, Quaternion.identity);
                 // Add/verify this log:
                 SmartLogger.Log($"[ShowAfterimage INSTANTIATED] Created afterimage for unit {unitName} at position {position}.", LogCategory.Unit, this);
             }
@@ -904,7 +899,7 @@ namespace Dokkaebi.Units
         public void HideAfterimage()
         {
             SmartLogger.Log($"[HideAfterimage] Called for {unitName}. Current Pos: {gridPosition}. Stored Start Pos: {positionAtTurnStart}", LogCategory.Unit, this);
-            
+
             if (currentAfterimageInstance != null)
             {
                 SmartLogger.Log($"[DokkaebiUnit.HideAfterimage] Destroying afterimage (Instance ID: {currentAfterimageInstance.GetInstanceID()}) for unit {unitName} (ID: {unitId})", LogCategory.Unit);
@@ -979,17 +974,29 @@ namespace Dokkaebi.Units
 
         public void SetTargetPosition(GridPosition targetPos)
         {
-            SmartLogger.Log($"[DokkaebiUnit.SetTargetPosition] Unit {unitName} (ID: {unitId}) - Setting hasPendingMovement=true. Previous value: {hasPendingMovement}", LogCategory.Unit, this);
+            // 1. Log when the method is entered, including the unit's ID and the target position.
+            SmartLogger.Log($"[DokkaebiUnit.SetTargetPosition] ENTRY for unit {unitId} ({unitName}) with target position {targetPos}", LogCategory.AI, this);
+            // 2. Log the unit's position before setting the new target position.
+            SmartLogger.Log($"[DokkaebiUnit.SetTargetPosition] Unit {unitId} position BEFORE setting target: {transform.position}, gridPosition: {gridPosition}", LogCategory.AI, this);
+            var prevTarget = targetPosition;
+            var prevPending = hasPendingMovement;
             targetPosition = targetPos;
             hasPendingMovement = true;
-            SmartLogger.Log($"[DokkaebiUnit.SetTargetPosition] Unit {unitName} (ID: {unitId}) - hasPendingMovement SET TO: {hasPendingMovement}", LogCategory.Unit, this);
+            // Log immediately after setting hasPendingMovement
+            SmartLogger.Log($"[DokkaebiUnit.SetTargetPosition] Unit {unitId} ({unitName}): hasPendingMovement set to TRUE.", LogCategory.AI, this);
+            // 3. Log the unit's position after setting the new target position (no transform change here, but log state).
+            SmartLogger.Log($"[DokkaebiUnit.SetTargetPosition] Unit {unitId} position AFTER setting target: {transform.position}, gridPosition: {gridPosition}, prevTarget: {prevTarget}, prevPending: {prevPending}, newTarget: {targetPosition}, hasPendingMovement: {hasPendingMovement}", LogCategory.AI, this);
+            // 4. Note: No direct call to visual movement/animation here. Visual movement is triggered by other systems (e.g., DokkaebiMovementHandler) after this flag is set.
+            // If you expect visual movement to start here, check MoveToGridPosition or movement handler logic.
         }
 
         public void ClearPendingMovement()
         {
+            SmartLogger.Log($"[DokkaebiUnit.ClearPendingMovement] ENTRY for unit {unitId} ({unitName}).", LogCategory.Unit, this);
             SmartLogger.Log($"[DokkaebiUnit.ClearPendingMovement] Unit {unitName} (ID: {unitId}) - Setting hasPendingMovement=false. Previous value: {hasPendingMovement}", LogCategory.Unit, this);
             hasPendingMovement = false;
             targetPosition = null;
+            SmartLogger.Log($"[DokkaebiUnit.ClearPendingMovement] Unit {unitId} ({unitName}): hasPendingMovement set to FALSE.", LogCategory.Unit, this);
             SmartLogger.Log($"[DokkaebiUnit.ClearPendingMovement] Unit {unitName} (ID: {unitId}) - hasPendingMovement SET TO: {hasPendingMovement}", LogCategory.Unit, this);
         }
 
@@ -999,7 +1006,7 @@ namespace Dokkaebi.Units
             {
                 return targetPosition.Value;
             }
-            
+
             return gridPosition;
         }
 
@@ -1069,24 +1076,11 @@ namespace Dokkaebi.Units
 
         public void ResetActionState()
         {
+            SmartLogger.Log($"[DokkaebiUnit.ResetActionState] ENTRY for unit {unitId} ({unitName}).", LogCategory.Unit, this);
             SmartLogger.Log($"[DokkaebiUnit.ResetActionState] Unit {unitName} (ID: {unitId}) - Setting hasPendingMovement=false. Previous value: {hasPendingMovement}", LogCategory.Unit, this);
             hasPendingMovement = false;
             hasMovedThisTurn = false;
-
-            // --- ADD MOVEMENT RANGE RESET START ---
-            SmartLogger.Log($"[DokkaebiUnit.ResetActionState] DEBUG: Before movementRange reset. Current movementRange: {movementRange}", LogCategory.Unit, this);
-            if (_unitDefinitionData != null)
-            {
-                movementRange = _unitDefinitionData.baseMovement;
-                SmartLogger.Log($"[DokkaebiUnit.ResetActionState] DEBUG: movementRange reset to base: {_unitDefinitionData.baseMovement}. New movementRange: {movementRange}", LogCategory.Unit, this);
-            }
-            else
-            {
-                SmartLogger.LogWarning($"[DokkaebiUnit.ResetActionState] DEBUG: _unitDefinitionData is null for unit {unitName}. Cannot reset movementRange to base.", LogCategory.Unit, this);
-            }
-            // --- ADD MOVEMENT RANGE RESET END ---
-
-            SmartLogger.Log($"[DokkaebiUnit.ResetActionState] Unit {unitName} (ID: {unitId}) - haspendingMovement SET TO: {hasPendingMovement}, hasMovedThisTurn SET TO: {hasMovedThisTurn}", LogCategory.Unit, this);
+            SmartLogger.Log($"[DokkaebiUnit.ResetActionState] Unit {unitId} ({unitName}): haspendingMovement SET TO: {hasPendingMovement}, hasMovedThisTurn SET TO: {hasMovedThisTurn}", LogCategory.Unit, this);
         }
 
         public void SetInteractable(bool interactable)
@@ -1098,7 +1092,7 @@ namespace Dokkaebi.Units
         public void UpdateCooldowns()
         {
             SmartLogger.Log($"[{this.unitName}] UpdateCooldowns START. Current Cooldowns: {string.Join(", ", abilityCooldowns.Select(kv => $"{kv.Key}:{kv.Value}"))}", LogCategory.Unit, this);
-            
+
             var keys = new List<string>(abilityCooldowns.Keys);
             foreach (var key in keys)
             {
@@ -1106,7 +1100,7 @@ namespace Dokkaebi.Units
                 {
                     abilityCooldowns[key] = currentCD - 1;
                     SmartLogger.Log($"[{this.unitName}] Decremented cooldown for {key}: {currentCD} -> {abilityCooldowns[key]}", LogCategory.Unit, this);
-                    
+
                     if (abilityCooldowns[key] <= 0)
                     {
                         abilityCooldowns.Remove(key);
@@ -1118,7 +1112,7 @@ namespace Dokkaebi.Units
                     abilityCooldowns.Remove(key);
                 }
             }
-            
+
             SmartLogger.Log($"[{this.unitName}] UpdateCooldowns END. Final Cooldowns: {string.Join(", ", abilityCooldowns.Select(kv => $"{kv.Key}:{kv.Value}"))}", LogCategory.Unit, this);
         }
 
@@ -1208,11 +1202,11 @@ namespace Dokkaebi.Units
                     // --- END ADDED LOG ---
                     UnityEngine.GameObject.Destroy(activeKarmicTetherVisual);
                     activeKarmicTetherVisual = null;
-                    SmartLogger.Log($"[DokkaebiUnit.HandleStatusEffectRemoved] activeKarmicTetherVisual set to null.", LogCategory.Unit, this);
+                    SmartLogger.Log($"[DokkaebiUnit.RaiseStatusEffectRemoved] activeKarmicTetherVisual set to null.", LogCategory.Unit, this);
                 }
                 // Unsubscribe the private method from the event (should be done here)
                 this.OnStatusEffectRemoved -= PropagateRemovedStatusEffect;
-                SmartLogger.Log($"[DokkaebiUnit.HandleStatusEffectRemoved] Unsubscribed from OnStatusEffectRemoved for removal propagation.", LogCategory.Unit, this);
+                SmartLogger.Log($"[DokkaebiUnit.RaiseStatusEffectRemoved] Unsubscribed from OnStatusEffectRemoved for removal propagation.", LogCategory.Unit, this);
             }
             // Effect-specific visual cleanup
             if (effect != null && activeEffectVisuals.TryGetValue(effect.StatusEffectType, out var visualInstance))

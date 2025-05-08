@@ -77,6 +77,7 @@ namespace Dokkaebi.Zones
         
         public void Initialize(IZoneData data, GridPosition pos, int ownerUnit, int duration = -1)
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: ENTER Initialize");
             zoneData = data;
             position = pos;
             ownerUnitId = ownerUnit;
@@ -99,6 +100,7 @@ namespace Dokkaebi.Zones
                 SmartLogger.LogError("[ZoneInstance.Initialize] GridManager.Instance is null! Cannot set zone world position.", LogCategory.Zone, this);
             }
             // --- END ADDED LOGGING ---
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: EXIT Initialize");
         }
         
         private void SetupVisuals()
@@ -183,22 +185,26 @@ namespace Dokkaebi.Zones
         /// </summary>
         public void ApplyZoneEffects(IDokkaebiUnit targetUnit = null)
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: ENTER ApplyZoneEffects");
             SmartLogger.Log($"[ZoneInstance.ApplyZoneEffects] BEGIN: Zone '{DisplayName}' at {position}", LogCategory.Zone, this);
             if (!IsActive || zoneData == null)
             {
                 SmartLogger.Log($"Zone '{DisplayName}' cannot apply effects: IsActive={IsActive}, zoneData={(zoneData == null ? "null" : "valid")}", LogCategory.Zone);
+                UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: EXIT ApplyZoneEffects");
                 return;
             }
             ZoneData concreteZoneData = zoneData as ZoneData;
             if (concreteZoneData == null)
             {
                 SmartLogger.LogError($"Cannot apply effects: zoneData is not of type ZoneData for {DisplayName}", LogCategory.Zone);
+                UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: EXIT ApplyZoneEffects");
                 return;
             }
             SmartLogger.Log($"[ZoneInstance.ApplyZoneEffects] Confirmed valid concreteZoneData for '{DisplayName}'", LogCategory.Zone, this);
             if (UnitManager.Instance == null)
             {
                 SmartLogger.LogError("[ZoneInstance.ApplyZoneEffects] Cannot apply zone effects: UnitManager instance is null.", LogCategory.Zone);
+                UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: EXIT ApplyZoneEffects");
                 return;
             }
             SmartLogger.Log($"[ZoneInstance.ApplyZoneEffects] Starting unit check loop for zone '{DisplayName}' (Radius: {Radius})", LogCategory.Zone, this);
@@ -215,6 +221,7 @@ namespace Dokkaebi.Zones
                     // Do NOT call ApplyStatusEffectToUnitImmediate here for any zone type,
                     // as it's specifically for effects applied *upon entering*.
                 }
+                UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: EXIT ApplyZoneEffects");
                 return;
             }
 
@@ -256,14 +263,17 @@ namespace Dokkaebi.Zones
                 }
             }
             SmartLogger.Log($"[ZoneInstance.ApplyZoneEffects] COMPLETE: Effect application complete for zone '{DisplayName}'", LogCategory.Zone, this);
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: EXIT ApplyZoneEffects");
         }
 
         private void ApplyEffectsToUnit(IDokkaebiUnit targetUnit, ZoneData concreteZoneData)
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: ENTER ApplyEffectsToUnit");
             SmartLogger.Log($"[ZoneInstance.ApplyEffectsToUnit] BEGIN: Zone '{DisplayName}' applying to unit '{targetUnit.GetUnitName()}'.", LogCategory.Zone, this);
             if (!(targetUnit is DokkaebiUnit dokkaebiUnit))
             {
                 SmartLogger.LogWarning($"Zone '{DisplayName}': Target unit is not a DokkaebiUnit, cannot apply effects", LogCategory.Zone);
+                UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: EXIT ApplyEffectsToUnit");
                 return;
             }
             var ownerUnit = ownerUnitId >= 0 ? UnitManager.Instance?.GetUnitById(ownerUnitId) : null;
@@ -282,6 +292,7 @@ namespace Dokkaebi.Zones
             if (!shouldAffect)
             {
                 SmartLogger.Log($"[ZoneInstance.ApplyEffectsToUnit] Skipping unit '{dokkaebiUnit.GetUnitName()}' due to allegiance mismatch.", LogCategory.Zone, this);
+                UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: EXIT ApplyEffectsToUnit");
                 return;
             }
             SmartLogger.Log($"[ZoneInstance.ApplyEffectsToUnit] Unit '{dokkaebiUnit.GetUnitName()}' will be affected.", LogCategory.Zone, this);
@@ -328,6 +339,7 @@ namespace Dokkaebi.Zones
                 SmartLogger.Log($"[ZoneInstance.ApplyEffectsToUnit] Applied status effect '{concreteZoneData.applyStatusEffect.displayName}' with duration {remainingDuration} to {dokkaebiUnit.GetUnitName()} (legacy field). Effect Type: {concreteZoneData.applyStatusEffect.effectType}.", LogCategory.Zone, this);
             }
             SmartLogger.Log($"[ZoneInstance.ApplyEffectsToUnit] END: Zone '{DisplayName}' applied effects to unit '{targetUnit.GetUnitName()}'.", LogCategory.Zone, this);
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: EXIT ApplyEffectsToUnit");
         }
         
         /// <summary>
@@ -335,6 +347,7 @@ namespace Dokkaebi.Zones
         /// </summary>
         public void ProcessTurn()
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: ENTER ProcessTurn");
             // Log initial state
             SmartLogger.Log($"[Instance:{GetInstanceID()}] Zone {DisplayName} ({Id}) ProcessTurn START - IsActive: {isActive}, RemainingDuration: {remainingDuration}, IsPermanent: {zoneData?.IsPermanent ?? false}", LogCategory.Zone, this);
 
@@ -342,6 +355,7 @@ namespace Dokkaebi.Zones
             if (!isActive)
             {
                 SmartLogger.Log($"[Instance:{GetInstanceID()}] Zone {DisplayName} ({Id}) is inactive, skipping turn processing", LogCategory.Zone, this);
+                UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: EXIT ProcessTurn");
                 return;
             }
 
@@ -371,6 +385,7 @@ namespace Dokkaebi.Zones
             {
                 SmartLogger.Log($"[Instance:{GetInstanceID()}] Zone {DisplayName} ({Id}) is permanent, skipping duration processing", LogCategory.Zone, this);
             }
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: EXIT ProcessTurn");
         }
         
         /// <summary>
@@ -378,6 +393,7 @@ namespace Dokkaebi.Zones
         /// </summary>
         public void Deactivate()
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: ENTER Deactivate");
             SmartLogger.Log($"[Instance:{GetInstanceID()}] Zone {DisplayName} ({Id}) Deactivate() START - Current State: IsActive={isActive}, IsFading={isFading}", LogCategory.Zone, this);
 
             // Set inactive state
@@ -386,6 +402,7 @@ namespace Dokkaebi.Zones
             // Start the fade out process
             StartFade();
             SmartLogger.Log($"[Instance:{GetInstanceID()}] Zone {DisplayName} ({Id}) started fade out process (currentAlpha={currentAlpha})", LogCategory.Zone, this);
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: EXIT Deactivate");
         }
         
         /// <summary>
@@ -393,6 +410,7 @@ namespace Dokkaebi.Zones
         /// </summary>
         public bool CanMergeWith(ZoneInstance otherZone)
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: ENTER CanMergeWith");
             // TODO: Implement logic to check if this zone can merge with another based on ZoneData
             if (zoneData == null || otherZone.zoneData == null || !CanMerge) return false;
             return MergesWithZoneIds.Contains(otherZone.zoneData.Id);
@@ -403,8 +421,10 @@ namespace Dokkaebi.Zones
         /// </summary>
         public void MergeWith(ZoneInstance otherZone)
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: ENTER MergeWith");
             SmartLogger.Log($"Merging zone {otherZone.DisplayName} into {DisplayName} at {position}", LogCategory.Zone, this);
             // Implementation of zone merging logic
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: EXIT MergeWith");
         }
         
         /// <summary>
@@ -412,6 +432,7 @@ namespace Dokkaebi.Zones
         /// </summary>
         public GridPosition GetGridPosition()
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: ENTER GetGridPosition");
             return position;
         }
 
@@ -422,12 +443,14 @@ namespace Dokkaebi.Zones
         /// <param name="newPosition">The new grid position of the zone's center.</param>
         public void SetGridPosition(GridPosition newPosition)
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: ENTER SetGridPosition");
             position = newPosition;
             // Optionally update the GameObject's transform position here if the visual
             // is directly tied to the ZoneInstance GameObject and not managed elsewhere.
             // However, ZoneManager.ShiftZone already updates the transform, so this might
             // only be needed for internal state consistency.
             SmartLogger.Log($"[Instance:{GetInstanceID()}] Zone '{DisplayName}' internal position updated to {newPosition}.", LogCategory.Zone, this); // Added log
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: EXIT SetGridPosition");
         }
         
         /// <summary>
@@ -435,11 +458,13 @@ namespace Dokkaebi.Zones
         /// </summary>
         public void ApplyInitialEffects()
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: ENTER ApplyInitialEffects");
             SmartLogger.Log($"[Instance:{GetInstanceID()}] Zone '{DisplayName}' ApplyInitialEffects() START.", LogCategory.Zone, this);
             // Ensure we have valid zone data and the zone is active
             if (!IsActive || zoneData == null)
             {
                 SmartLogger.Log($"[Instance:{GetInstanceID()}] Zone '{DisplayName}' cannot apply initial effects: IsActive={IsActive}, zoneData={(zoneData == null ? "null" : "valid")}", LogCategory.Zone, this);
+                UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: EXIT ApplyInitialEffects");
                 return;
             }
 
@@ -448,6 +473,7 @@ namespace Dokkaebi.Zones
             if (concreteZoneData == null)
             {
                 SmartLogger.LogError($"[Instance:{GetInstanceID()}] ApplyInitialEffects failed: ZoneData is not of type ZoneData for {zoneData?.DisplayName ?? "Unknown Zone"}", LogCategory.Zone, this);
+                UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: EXIT ApplyInitialEffects");
                 return;
             }
             SmartLogger.Log($"[Instance:{GetInstanceID()}] Zone '{DisplayName}' has valid concreteZoneData. Checking for initial effects configuration.", LogCategory.Zone, this);
@@ -593,6 +619,7 @@ namespace Dokkaebi.Zones
                 }
             }
             SmartLogger.Log($"[Instance:{GetInstanceID()}] Zone '{DisplayName}' ApplyInitialEffects() END.", LogCategory.Zone, this);
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: EXIT ApplyInitialEffects");
         }
         
         private void Update()
@@ -653,9 +680,13 @@ namespace Dokkaebi.Zones
         /// </summary>
         public void ApplyZoneEffects()
         {
+            SmartLogger.Log($"[ZoneInstance.ApplyZoneEffects ENTRY] Zone: {DisplayName}", LogCategory.Zone, this);
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: ENTER ApplyZoneEffects (no param)");
             if (!isActive || zoneData == null)
             {
                 SmartLogger.LogWarning($"[ZoneInstance.ApplyZoneEffects] Cannot apply effects: Zone inactive or data null", LogCategory.Zone);
+                UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: EXIT ApplyZoneEffects (no param)");
+                SmartLogger.Log($"[ZoneInstance.ApplyZoneEffects EXIT] Zone: {DisplayName}", LogCategory.Zone, this);
                 return;
             }
 
@@ -664,6 +695,8 @@ namespace Dokkaebi.Zones
             if (concreteZoneData == null)
             {
                 SmartLogger.LogError($"[ZoneInstance.ApplyZoneEffects] Could not cast zoneData to ZoneData for {DisplayName}", LogCategory.Zone);
+                UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: EXIT ApplyZoneEffects (no param)");
+                SmartLogger.Log($"[ZoneInstance.ApplyZoneEffects EXIT] Zone: {DisplayName}", LogCategory.Zone, this);
                 return;
             }
 
@@ -677,13 +710,16 @@ namespace Dokkaebi.Zones
             // Apply effects to units in zone
             foreach (var unit in unitsInZone)
             {
+                SmartLogger.Log($"Processing unit {unit?.GetUnitName() ?? "NULL"} at {unit?.CurrentGridPosition.ToString() ?? "NULL_POS"}.", LogCategory.Zone, this);
                 if (unit == null || !unit.IsAlive) continue;
 
                 // Add to tracking
                 _affectedUnits.Add(unit);
 
+                SmartLogger.Log($"Before ApplyEffectsToUnit for {unit?.GetUnitName() ?? "NULL"}", LogCategory.Zone, this);
                 // Apply zone-specific effects using the correct method with ZoneData
                 ApplyEffectsToUnit(unit, concreteZoneData);
+                SmartLogger.Log($"After ApplyEffectsToUnit for {unit?.GetUnitName() ?? "NULL"}", LogCategory.Zone, this);
             }
 
             // Remove effects from units that left the zone
@@ -697,6 +733,8 @@ namespace Dokkaebi.Zones
                     RemoveZoneEffectsFromUnit(unit);
                 }
             }
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: EXIT ApplyZoneEffects (no param)");
+            SmartLogger.Log($"[ZoneInstance.ApplyZoneEffects EXIT] Zone: {DisplayName}", LogCategory.Zone, this);
         }
 
         /// <summary>
@@ -873,6 +911,7 @@ namespace Dokkaebi.Zones
         /// </summary>
         public void ApplyTurnEndEffects()
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: ENTER ApplyTurnEndEffects");
             // Log at the very beginning (already confirmed working)
             SmartLogger.Log($"[Instance:{GetInstanceID()}] ApplyTurnEndEffects called for Zone '{zoneData?.DisplayName ?? "NULL"}' (ID: {zoneData?.Id ?? "NULL ID"}). IsActive: {isActive}, RemainingDuration: {remainingDuration}", LogCategory.Zone, this);
             // --- Diagnostic log for zoneData.Id ---
@@ -883,6 +922,7 @@ namespace Dokkaebi.Zones
             if (zoneData == null || !(zoneData is ZoneData concreteZoneData))
             {
                 SmartLogger.LogWarning($"[ZoneInstance.ApplyTurnEndEffects] Skipping zone (NULL zoneData or not concrete ZoneData). IsActive: {isActive}", LogCategory.Zone);
+                UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: EXIT ApplyTurnEndEffects");
                 return;
             }
 
@@ -899,6 +939,7 @@ namespace Dokkaebi.Zones
                     if (gridManager == null || unitManager == null)
                     {
                         SmartLogger.LogError("[ZoneInstance.ApplyTurnEndEffects] GridManager or UnitManager instance is null! Cannot apply damage.", LogCategory.Zone);
+                        UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: EXIT ApplyTurnEndEffects");
                         return;
                     }
                     List<GridPosition> positionsInRange = gridManager.GetGridPositionsInRange(this.position, this.Radius);
@@ -1052,6 +1093,7 @@ namespace Dokkaebi.Zones
             // has its own logic block. If a zone type doesn't have turn-end effects,
             // it simply won't match any of the conditions, and the method will complete
             // without doing anything for that zone.
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: EXIT ApplyTurnEndEffects");
         }
 
         /// <summary>
@@ -1060,11 +1102,20 @@ namespace Dokkaebi.Zones
         /// </summary>
         public void ApplyStatusEffectToUnitImmediate(IDokkaebiUnit targetUnit)
         {
+            SmartLogger.Log($"[ZoneInstance.ApplyStatusEffectToUnitImmediate ENTRY] Zone: {DisplayName}, Target: {targetUnit?.GetUnitName() ?? "NULL"}", LogCategory.Zone, this);
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: ENTER ApplyStatusEffectToUnitImmediate");
+            // Add a log at the very first line of the method
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ASUUI: ENTRY. Zone: {DisplayName}, Target: {targetUnit?.GetUnitName() ?? "NULL"}.");
+
             SmartLogger.Log($"[ZoneInstance.ApplyStatusEffectToUnitImmediate] BEGIN: Zone '{DisplayName}' attempting immediate apply to unit '{targetUnit?.GetUnitName() ?? "NULL"}'.", LogCategory.Zone, this);
 
             if (!IsActive || zoneData == null)
             {
                 SmartLogger.Log($"Zone '{DisplayName}' cannot apply immediate effects: IsActive={IsActive}, zoneData={(zoneData == null ? "null" : "valid")}", LogCategory.Zone);
+                // Add log before exiting early
+                UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ASUUI: Exiting early due to inactive zone or null zoneData.");
+                UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: EXIT ApplyStatusEffectToUnitImmediate");
+                SmartLogger.Log($"[ZoneInstance.ApplyStatusEffectToUnitImmediate EXIT] Zone: {DisplayName}, Target: {targetUnit?.GetUnitName() ?? "NULL"}", LogCategory.Zone, this);
                 return;
             }
 
@@ -1072,63 +1123,13 @@ namespace Dokkaebi.Zones
             if (concreteZoneData == null)
             {
                 SmartLogger.LogError($"[ZoneInstance.ApplyStatusEffectToUnitImmediate] Cannot apply immediate effects: concreteZoneData is null for {DisplayName}", LogCategory.Zone);
+                // Add log before exiting early
+                UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ASUUI: Exiting early due to null concreteZoneData.");
+                UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: EXIT ApplyStatusEffectToUnitImmediate");
+                SmartLogger.Log($"[ZoneInstance.ApplyStatusEffectToUnitImmediate EXIT] Zone: {DisplayName}, Target: {targetUnit?.GetUnitName() ?? "NULL"}", LogCategory.Zone, this);
                 return;
             }
 
-            // --- Handle Storm Surge specific immediate effect (Movement Buff) ---
-            if (concreteZoneData.Id == "StormSurge")
-            {
-                SmartLogger.Log($"[ZoneInstance.ApplyStatusEffectToUnitImmediate] Handling Storm Surge specific immediate effect for unit {targetUnit?.GetUnitName() ?? "NULL"}.", LogCategory.Zone, this);
-
-                // Get the "PlusOneMovementStorm" Status Effect Data asset
-                StatusEffectData movementBuffEffectData = DataManager.Instance?.GetStatusEffectData("PlusOneMovementStorm");
-
-                if (movementBuffEffectData != null)
-                {
-                    // Check allegiance before applying
-                    if (!(targetUnit is DokkaebiUnit dokkaebiUnit))
-                    {
-                        SmartLogger.LogWarning($"Zone '{DisplayName}': Target unit is not a DokkaebiUnit, cannot apply immediate effects", LogCategory.Zone);
-                        return;
-                    }
-
-                    var ownerUnit = ownerUnitId >= 0 ? UnitManager.Instance?.GetUnitById(ownerUnitId) : null;
-
-                    bool isAlly = ownerUnit != null && dokkaebiUnit.TeamId == ownerUnit.TeamId;
-                    bool isSelf = ownerUnit != null && dokkaebiUnit.UnitId == ownerUnit.UnitId;
-                    bool isEnemy = ownerUnit != null && dokkaebiUnit.TeamId != ownerUnit.TeamId;
-
-                    bool shouldAffect = concreteZoneData.affects switch
-                    {
-                        AllegianceTarget.Any => true,
-                        AllegianceTarget.AllyOnly => isAlly || isSelf,
-                        AllegianceTarget.EnemyOnly => isEnemy,
-                        _ => false
-                    };
-
-                    SmartLogger.Log($"[ZoneInstance.ApplyStatusEffectToUnitImmediate] Allegiance check for '{dokkaebiUnit.GetUnitName()}': Zone Affects='{concreteZoneData.affects}', IsAlly={isAlly}, IsSelf={isSelf}, IsEnemy={isEnemy}, shouldAffect={shouldAffect}", LogCategory.Zone, this);
-
-                    if (shouldAffect)
-                    {
-                        SmartLogger.Log($"[ZoneInstance.ApplyStatusEffectToUnitImmediate] Applying Storm Surge movement buff '{movementBuffEffectData.displayName}' to unit {dokkaebiUnit.GetUnitName()} for {movementBuffEffectData.duration} turns.", LogCategory.Zone, this);
-                        // Apply the status effect with its defined duration (2 turns)
-                        StatusEffectSystem.ApplyStatusEffect(dokkaebiUnit, movementBuffEffectData, movementBuffEffectData.duration, ownerUnit);
-                        SmartLogger.Log($"[ZoneInstance.ApplyStatusEffectToUnitImmediate] Applied Storm Surge movement buff to {dokkaebiUnit.GetUnitName()} immediately.", LogCategory.Zone, this);
-                    }
-                    else
-                    {
-                        SmartLogger.Log($"[ZoneInstance.ApplyStatusEffectToUnitImmediate] Skipping unit '{dokkaebiUnit.GetUnitName()}' due to allegiance mismatch for Storm Surge immediate apply.", LogCategory.Zone, this);
-                    }
-                }
-                else
-                {
-                    SmartLogger.LogWarning($"[ZoneInstance.ApplyStatusEffectToUnitImmediate] Could not find PlusOneMovementStorm StatusEffectData for StormSurge zone.", LogCategory.Zone, this);
-                }
-                SmartLogger.Log($"[ZoneInstance.ApplyStatusEffectToUnitImmediate] END", LogCategory.Zone, this);
-                return;
-            }
-
-            // --- Existing logic for general immediate status effect ---
             if (concreteZoneData.applyStatusEffect != null)
             {
                 SmartLogger.Log($"[ZoneInstance.ApplyStatusEffectToUnitImmediate] Zone '{DisplayName}' has a general status effect '{concreteZoneData.applyStatusEffect.displayName}' configured for immediate application.", LogCategory.Zone, this);
@@ -1136,6 +1137,10 @@ namespace Dokkaebi.Zones
                 if (!(targetUnit is DokkaebiUnit dokkaebiUnit))
                 {
                     SmartLogger.LogWarning($"Zone '{DisplayName}': Target unit is not a DokkaebiUnit, cannot apply immediate effects", LogCategory.Zone);
+                    // Add log before exiting early
+                    UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ASUUI: Exiting general effect block early due to non-DokkaebiUnit target.");
+                    UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: EXIT ApplyStatusEffectToUnitImmediate");
+                    SmartLogger.Log($"[ZoneInstance.ApplyStatusEffectToUnitImmediate EXIT] Zone: {DisplayName}, Target: {targetUnit?.GetUnitName() ?? "NULL"}", LogCategory.Zone, this);
                     return;
                 }
 
@@ -1159,22 +1164,29 @@ namespace Dokkaebi.Zones
                 if (!shouldAffect)
                 {
                     SmartLogger.Log($"[ZoneInstance.ApplyStatusEffectToUnitImmediate] Skipping unit '{dokkaebiUnit.GetUnitName()}' due to allegiance mismatch for immediate apply.", LogCategory.Zone, this);
+                    // Add log before exiting early
+                    UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ASUUI: Exiting general effect block early due to allegiance mismatch.");
+                    UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: EXIT ApplyStatusEffectToUnitImmediate");
+                    SmartLogger.Log($"[ZoneInstance.ApplyStatusEffectToUnitImmediate EXIT] Zone: {DisplayName}, Target: {targetUnit?.GetUnitName() ?? "NULL"}", LogCategory.Zone, this);
                     return;
                 }
 
-                SmartLogger.Log($"[ZoneInstance.ApplyStatusEffectToUnitImmediate] Unit '{dokkaebiUnit.GetUnitName()}' should be affected immediately. Applying status effect '{concreteZoneData.applyStatusEffect.displayName}'.", LogCategory.Zone, this);
-
-                // Apply the status effect using the zone's current remaining duration
-                // Note: This will overwrite any existing stack of this non-stackable effect,
-                // refreshing its duration to the zone's remaining time.
+                SmartLogger.Log($"About to call StatusEffectSystem.ApplyStatusEffect for effect '{concreteZoneData.applyStatusEffect.displayName}' with duration {remainingDuration} on {dokkaebiUnit.GetUnitName()}.", LogCategory.Zone, this);
                 StatusEffectSystem.ApplyStatusEffect(dokkaebiUnit, concreteZoneData.applyStatusEffect, remainingDuration, ownerUnit);
-
+                SmartLogger.Log($"Returned from StatusEffectSystem.ApplyStatusEffect for effect '{concreteZoneData.applyStatusEffect.displayName}' on {dokkaebiUnit.GetUnitName()}.", LogCategory.Zone, this);
                 SmartLogger.Log($"[ZoneInstance.ApplyStatusEffectToUnitImmediate] Applied status effect '{concreteZoneData.applyStatusEffect.displayName}' with duration {remainingDuration} to {dokkaebiUnit.GetUnitName()} immediately.", LogCategory.Zone, this);
             }
             else // --- No immediate status effect configured for this zone type ---
             {
                 SmartLogger.Log($"[ZoneInstance.ApplyStatusEffectToUnitImmediate] Zone '{DisplayName}' has no immediate status effect configured.", LogCategory.Zone, this);
+                // Add log before exiting the else block
+                UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ASUUI: Exiting else block (no immediate effect configured).");
+                UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: EXIT ApplyStatusEffectToUnitImmediate");
             }
+            // Add log at the very end of the method
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ASUUI: EXIT. Zone: {DisplayName}.");
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ZoneInstance: EXIT ApplyStatusEffectToUnitImmediate");
+            SmartLogger.Log($"[ZoneInstance.ApplyStatusEffectToUnitImmediate EXIT] Zone: {DisplayName}, Target: {targetUnit?.GetUnitName() ?? "NULL"}", LogCategory.Zone, this);
         }
     }
 } 

@@ -53,6 +53,8 @@ namespace Dokkaebi.Pathfinding
         // Diagnostic field
         private Vector3 _targetWorldPosAfterSnap = Vector3.zero;
 
+        private DokkaebiUnit _dokkaebiUnit; // For direct access to DokkaebiUnit-specific fields
+
         /// <summary>
         /// Calculates the cost of a path using Manhattan distance between consecutive points
         /// </summary>
@@ -129,43 +131,67 @@ namespace Dokkaebi.Pathfinding
         /// </summary>
         private void OnPathComplete(Path p)
         {
-            SmartLogger.Log($"[DokkaebiMovementHandler] OnPathComplete called for unit {gameObject.name}", LogCategory.Pathfinding, this);
+            SmartLogger.Log($"[DokkaebiMovementHandler.OnPathComplete] ========== START PATH COMPLETE ==========", LogCategory.Pathfinding, this);
+            SmartLogger.Log($"[DokkaebiMovementHandler.OnPathComplete] Unit: {_unit?.GetUnitName() ?? "NULL"} (ID: {_unit?.UnitId ?? -1})", LogCategory.Pathfinding, this);
             
             if (p.error)
             {
-                SmartLogger.LogError($"[DokkaebiMovementHandler] Path calculation failed: {p.errorLog}", LogCategory.Pathfinding, this);
+                SmartLogger.LogError($"[DokkaebiMovementHandler.OnPathComplete] FAILED: Path calculation error: {p.errorLog}", LogCategory.Pathfinding, this);
                 return;
             }
 
-            SmartLogger.Log($"[DokkaebiMovementHandler] Path calculation successful. Waypoints: {p.vectorPath.Count}", LogCategory.Pathfinding, this);
-
-            // Log the final waypoint world position
-            if (p.vectorPath != null && p.vectorPath.Count > 0)
+            if (p.vectorPath == null || p.vectorPath.Count == 0)
             {
-                Vector3 finalWaypointWorldPos = p.vectorPath[p.vectorPath.Count - 1];
-                SmartLogger.Log($"[DokkaebiMovementHandler] Final path waypoint: {finalWaypointWorldPos}", LogCategory.Pathfinding, this);
+                SmartLogger.LogError($"[DokkaebiMovementHandler.OnPathComplete] FAILED: Path is empty or null", LogCategory.Pathfinding, this);
+                return;
             }
-            
-            // Store the path
+
+            // Log path details
+            SmartLogger.Log($"[DokkaebiMovementHandler.OnPathComplete] Path Details:", LogCategory.Pathfinding, this);
+            SmartLogger.Log($"- Total Waypoints: {p.vectorPath.Count}", LogCategory.Pathfinding, this);
+            SmartLogger.Log($"- Start Position: {p.vectorPath[0]}", LogCategory.Pathfinding, this);
+            SmartLogger.Log($"- End Position: {p.vectorPath[p.vectorPath.Count - 1]}", LogCategory.Pathfinding, this);
+
+            // Calculate and log path cost
+            List<Vector3> pathPoints = p.vectorPath;
+            int pathCost = CalculatePathCost(pathPoints);
+            SmartLogger.Log($"- Path Cost: {pathCost}", LogCategory.Pathfinding, this);
+            SmartLogger.Log($"- Movement Range: {_unit?.MovementRange ?? 0}", LogCategory.Pathfinding, this);
+
+            // Check if path needs truncation
+            if (pathCost > (_unit?.MovementRange ?? 0))
+            {
+                SmartLogger.Log($"[DokkaebiMovementHandler.OnPathComplete] Path exceeds movement range. Truncating...", LogCategory.Pathfinding, this);
+                pathPoints = TruncatePathToCost(pathPoints, _unit?.MovementRange ?? 0);
+                SmartLogger.Log($"- Truncated Path Length: {pathPoints.Count}", LogCategory.Pathfinding, this);
+                SmartLogger.Log($"- New End Position: {pathPoints[pathPoints.Count - 1]}", LogCategory.Pathfinding, this);
+            }
+
+            // Store the path and prepare for movement
             currentPath = p;
             currentWaypoint = 0;
             isMoving = true;
 
-            // Show afterimage at turn start position when movement begins
-            if (_unit is DokkaebiUnit dokkaebiUnit)
+            // Show afterimage if applicable
+            if (_dokkaebiUnit != null)
             {
-                bool hasPrefabDef = dokkaebiUnit.HasAfterimagePrefabDefined();
-                SmartLogger.Log($"[OnPathComplete] Check before ShowAfterimage for {gameObject.name}. HasAfterimagePrefabDefined returned: {hasPrefabDef}", LogCategory.Movement, this);
-                if (hasPrefabDef) 
+                bool hasPrefabDef = _dokkaebiUnit.HasAfterimagePrefabDefined();
+                SmartLogger.Log($"[DokkaebiMovementHandler.OnPathComplete] Afterimage Check:", LogCategory.Pathfinding, this);
+                SmartLogger.Log($"- Has Afterimage Prefab: {hasPrefabDef}", LogCategory.Pathfinding, this);
+                SmartLogger.Log($"- Turn Start Position: {_dokkaebiUnit.GetPositionAtTurnStart()}", LogCategory.Pathfinding, this);
+                
+                if (hasPrefabDef)
                 {
-                    SmartLogger.Log($"[OnPathComplete] BEFORE ShowAfterimage for {gameObject.name}. Unit Start Pos: {dokkaebiUnit.GetPositionAtTurnStart()}", LogCategory.Movement, this);
-                    dokkaebiUnit.ShowAfterimage(dokkaebiUnit.GetPositionAtTurnStart());
+                    _dokkaebiUnit.ShowAfterimage(_dokkaebiUnit.GetPositionAtTurnStart());
+                    SmartLogger.Log($"- Afterimage shown at turn start position", LogCategory.Pathfinding, this);
                 }
             }
-            
-            // Start following the path
-            SmartLogger.Log("[DokkaebiMovementHandler] Starting to follow path", LogCategory.Pathfinding, this);
+
+            // Start movement
+            SmartLogger.Log($"[DokkaebiMovementHandler.OnPathComplete] Starting path following...", LogCategory.Pathfinding, this);
             FollowPath(Time.deltaTime);
+
+            SmartLogger.Log($"[DokkaebiMovementHandler.OnPathComplete] ========== END PATH COMPLETE ==========", LogCategory.Pathfinding, this);
         }
 
         /// <summary>
@@ -220,6 +246,7 @@ namespace Dokkaebi.Pathfinding
 
             // Get unit reference
             _unit = GetComponent<IDokkaebiUnit>();
+            _dokkaebiUnit = GetComponent<DokkaebiUnit>();
             // SmartLogger.Log($"[MovementHandler AWAKE] Found IDokkaebiUnit: {(_unit != null)}. Unit details: {(_unit != null ? $"Name={_unit.GetUnitName()}, ID={_unit.UnitId}" : "NULL")}", LogCategory.Pathfinding, this);
             
             // Get GridManager instance and required interfaces
@@ -252,6 +279,7 @@ namespace Dokkaebi.Pathfinding
                 return;
             }
 
+            SmartLogger.Log($"[DokkaebiMovementHandler] Initialized for unit {_dokkaebiUnit?.UnitId} ({_dokkaebiUnit?.UnitName})", LogCategory.Unit, this);
             SmartLogger.Log($"[MovementHandler AWAKE] Successfully initialized with Unit={_unit.GetUnitName()}, GridSystem={_gridSystem.GetType().Name}, GridInfo={_gridInfo.GetType().Name}", LogCategory.Pathfinding, this);
         }
 
@@ -303,58 +331,92 @@ namespace Dokkaebi.Pathfinding
 
         private void Update()
         {
-            if (!isMoving || currentPath == null || currentPath.vectorPath == null || currentPath.vectorPath.Count == 0 || currentWaypoint >= currentPath.vectorPath.Count)
+            // Log each time Update runs
+            SmartLogger.Log($"[DokkaebiMovementHandler] Update for unit {_dokkaebiUnit?.UnitId} ({_dokkaebiUnit?.UnitName}). HasPendingMovement: {_dokkaebiUnit?.HasPendingMovement}", LogCategory.Unit, this);
+            if (_dokkaebiUnit != null && _dokkaebiUnit.HasPendingMovement && !isMoving)
+            {
+                GridPosition targetPos = _dokkaebiUnit.GetPendingTargetPosition();
+                SmartLogger.Log($"[DokkaebiMovementHandler] Initiating movement for unit {_dokkaebiUnit.UnitId} to {targetPos}", LogCategory.Unit, this);
+                // Initiate movement via pathfinding
+                RequestPath(targetPos);
+                // Log after requesting path
+                SmartLogger.Log($"[DokkaebiMovementHandler] RequestPath called for unit {_dokkaebiUnit.UnitId} to {targetPos}", LogCategory.Unit, this);
+                // Optionally, clear pending movement here if that's the design (if not, leave as is)
+            }
+            if (!isMoving || currentPath == null || currentPath.vectorPath == null || currentWaypoint >= currentPath.vectorPath.Count)
             {
                 return;
             }
-
             FollowPath(Time.deltaTime);
         }
 
         public void RequestPath(GridPosition targetPosition)
         {
-            // Log Unit ID and Name at the very beginning
-            SmartLogger.Log($"[MovementHandler] Unit {_unit?.UnitId} ({_unit?.GetUnitName()}) requesting path from {_unit?.CurrentGridPosition} to {targetPosition}", LogCategory.Pathfinding, this);
-            
-            SmartLogger.Log($"[MovementHandler] RequestPath called for unit {gameObject.name} to position {targetPosition}", LogCategory.Pathfinding, this);
-            
-            if (_unit == null || _gridSystem == null)
-            {
-                SmartLogger.LogError("[MovementHandler] Cannot request path: Missing dependencies", LogCategory.Pathfinding, this);
-                return;
-            }
+            SmartLogger.Log($"[DokkaebiMovementHandler.RequestPath] ========== START PATH REQUEST ==========", LogCategory.Pathfinding, this);
+            SmartLogger.Log($"[DokkaebiMovementHandler.RequestPath] Unit: {_unit?.GetUnitName() ?? "NULL"} (ID: {_unit?.UnitId ?? -1})", LogCategory.Pathfinding, this);
+            SmartLogger.Log($"[DokkaebiMovementHandler.RequestPath] Target Position: {targetPosition}", LogCategory.Pathfinding, this);
 
+            // Validate dependencies
             if (seeker == null)
             {
-                SmartLogger.LogError("[MovementHandler] Cannot request path: seeker is null", LogCategory.Pathfinding, this);
+                SmartLogger.LogError($"[DokkaebiMovementHandler.RequestPath] FAILED: Seeker component not found", LogCategory.Pathfinding, this);
+                return;
+            }
+            if (_gridInfo == null)
+            {
+                SmartLogger.LogError($"[DokkaebiMovementHandler.RequestPath] FAILED: Grid info provider not found", LogCategory.Pathfinding, this);
+                return;
+            }
+            if (_unit == null)
+            {
+                SmartLogger.LogError($"[DokkaebiMovementHandler.RequestPath] FAILED: Unit reference not found", LogCategory.Pathfinding, this);
                 return;
             }
 
+            // Log current unit state
+            SmartLogger.Log($"[DokkaebiMovementHandler.RequestPath] Unit State:", LogCategory.Pathfinding, this);
+            SmartLogger.Log($"- Current Position: {_unit.CurrentGridPosition}", LogCategory.Pathfinding, this);
+            SmartLogger.Log($"- Movement Range: {_unit.MovementRange}", LogCategory.Pathfinding, this);
+            SmartLogger.Log($"- Is Moving: {isMoving}", LogCategory.Pathfinding, this);
+
+            // Store target position
             targetGridPosition = targetPosition;
-            
-            // Log unit's actual transform position BEFORE converting grid position to world
-            SmartLogger.Log($"[MovementHandler] Unit transform.position BEFORE path request: {transform.position}", LogCategory.Pathfinding, this);
-            
+
             // Convert grid positions to world positions
-            Vector3 startPos = _gridSystem.GridToWorldPosition(_unit.CurrentGridPosition);
-            
-            // Log the calculated start position for the path request
-            SmartLogger.Log($"[MovementHandler] startPos calculated for A* path request: {startPos}", LogCategory.Pathfinding, this);
-            
-            Vector3 endPos = _gridSystem.GridToWorldPosition(targetPosition);
-            
-            // Add a Z-offset to compensate for the observed A* waypoint misalignment
-            //endPos.z += 0.5f;
-            
-            // Log the adjusted end position before requesting the path
-            SmartLogger.Log($"[MovementHandler] Requesting path from {startPos} to adjusted endPos {endPos}", LogCategory.Pathfinding, this);
-            
-            // Request the path using the adjusted endPos
-            seeker.StartPath(startPos, endPos, OnPathComplete);
+            Vector3 startWorldPos = Common.GridConverter.GridToWorld(_unit.CurrentGridPosition);
+            Vector3 targetWorldPos = Common.GridConverter.GridToWorld(targetPosition);
+
+            SmartLogger.Log($"[DokkaebiMovementHandler.RequestPath] World Positions:", LogCategory.Pathfinding, this);
+            SmartLogger.Log($"- Start World Position: {startWorldPos}", LogCategory.Pathfinding, this);
+            SmartLogger.Log($"- Target World Position: {targetWorldPos}", LogCategory.Pathfinding, this);
+
+            // Check if we need to update the path
+            float timeSinceLastUpdate = Time.time - lastPathUpdateTime;
+            bool shouldUpdatePath = !isMoving || timeSinceLastUpdate >= pathUpdateInterval;
+
+            SmartLogger.Log($"[DokkaebiMovementHandler.RequestPath] Path Update Check:", LogCategory.Pathfinding, this);
+            SmartLogger.Log($"- Time Since Last Update: {timeSinceLastUpdate:F2}s", LogCategory.Pathfinding, this);
+            SmartLogger.Log($"- Update Interval: {pathUpdateInterval}s", LogCategory.Pathfinding, this);
+            SmartLogger.Log($"- Should Update Path: {shouldUpdatePath}", LogCategory.Pathfinding, this);
+
+            if (shouldUpdatePath)
+            {
+                // Start path calculation
+                SmartLogger.Log($"[DokkaebiMovementHandler.RequestPath] Starting path calculation from {startWorldPos} to {targetWorldPos}", LogCategory.Pathfinding, this);
+                seeker.StartPath(startWorldPos, targetWorldPos, OnPathComplete);
+                lastPathUpdateTime = Time.time;
+            }
+            else
+            {
+                SmartLogger.Log($"[DokkaebiMovementHandler.RequestPath] Skipping path update (too soon since last update)", LogCategory.Pathfinding, this);
+            }
+
+            SmartLogger.Log($"[DokkaebiMovementHandler.RequestPath] ========== END PATH REQUEST ==========", LogCategory.Pathfinding, this);
         }
 
         private void FollowPath(float deltaTime)
         {
+            SmartLogger.Log($"[DokkaebiMovementHandler] FollowPath ENTRY for unit {_dokkaebiUnit?.UnitId} ({_dokkaebiUnit?.UnitName})", LogCategory.Unit, this);
             SmartLogger.Log($"[MovementHandler.FollowPath] Tick. Current Waypoint: {currentWaypoint}/{currentPath?.vectorPath?.Count ?? 0}. isMoving={isMoving}", LogCategory.Pathfinding, this);
             
             if (currentPath == null || currentPath.vectorPath == null || currentPath.vectorPath.Count == 0)
@@ -372,10 +434,12 @@ namespace Dokkaebi.Pathfinding
             // Start movement coroutine
             SmartLogger.Log("[DokkaebiMovementHandler] Starting movement coroutine", LogCategory.Pathfinding, this);
             StartCoroutine(MoveAlongPath(deltaTime));
+            SmartLogger.Log($"[DokkaebiMovementHandler] FollowPath EXIT for unit {_dokkaebiUnit?.UnitId} ({_dokkaebiUnit?.UnitName})", LogCategory.Unit, this);
         }
 
         private IEnumerator MoveAlongPath(float deltaTime)
         {
+            SmartLogger.Log($"[DokkaebiMovementHandler] MoveAlongPath ENTRY for unit {_dokkaebiUnit?.UnitId} ({_dokkaebiUnit?.UnitName})", LogCategory.Unit, this);
             if (gameObject == null)
             {
                 SmartLogger.LogError("[DokkaebiMovementHandler] Cannot move along path: GameObject is null or destroyed", LogCategory.Pathfinding, this);
@@ -643,6 +707,7 @@ namespace Dokkaebi.Pathfinding
                 SmartLogger.LogError("[DokkaebiMovementHandler] Cannot complete movement: GameObject is null or inactive", LogCategory.Pathfinding, this);
                 isMoving = false;
             }
+            SmartLogger.Log($"[DokkaebiMovementHandler] MoveAlongPath EXIT for unit {_dokkaebiUnit?.UnitId} ({_dokkaebiUnit?.UnitName})", LogCategory.Unit, this);
         }
 
         private void CompleteMovement()

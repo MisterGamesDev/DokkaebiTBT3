@@ -114,5 +114,15 @@ namespace Dokkaebi.Interfaces
         /// </summary>
         /// <returns>The GridPosition where the unit was at the start of the current turn.</returns>
         GridPosition GetPositionAtTurnStart();
+
+        /// <summary>
+        /// Whether the unit has a pending movement action (for AI/visual movement systems)
+        /// </summary>
+        bool HasPendingMovement { get; }
+
+        /// <summary>
+        /// Sets the unit's target position for movement (used by AI/command systems)
+        /// </summary>
+        void SetTargetPosition(GridPosition targetPos);
     }
 } 
