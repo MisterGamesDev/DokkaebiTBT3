@@ -113,7 +113,7 @@ namespace Dokkaebi.Camera
         private void LateUpdate()
         {
              // Log state at the beginning of LateUpdate
-            SmartLogger.Log($"[CameraController.LateUpdate] Start Frame. isPerformingOrbit: {isPerformingOrbit}, isOrbitRotationActive: {isOrbitRotationActive}", LogCategory.General, this);
+            //SmartLogger.Log($"[CameraController.LateUpdate] Start Frame. isPerformingOrbit: {isPerformingOrbit}, isOrbitRotationActive: {isOrbitRotationActive}", LogCategory.General, this);
 
              // Determine the pivot point for ORBITING
             Vector3 pivotPoint = (orbitPivotUnitTransform != null) ? orbitPivotUnitTransform.position : defaultOrbitPivot;
