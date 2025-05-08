@@ -6,6 +6,7 @@ using Dokkaebi.Interfaces;
 using Dokkaebi.Core.Data;
 using Dokkaebi.Utilities;
 using Dokkaebi.Core;
+using Dokkaebi.Common;
 
 namespace Dokkaebi.Core.Networking.Commands
 {
@@ -173,7 +174,7 @@ namespace Dokkaebi.Core.Networking.Commands
             }
 
             var unit = unitManager.GetUnitById(UnitId);
-            SmartLogger.Log($"[AbilityCommand.Validate] Checking Unit... Found: {(unit != null ? unit.GetUnitName() : "NULL")}", LogCategory.Ability);
+            SmartLogger.Log($"[AbilityCommand.Validate] Checking Unit... Found: {(unit != null ? unit.GetUnitName() : "NULL")}, IsAI: {(unit != null ? !unit.IsPlayer() : false)}", LogCategory.Ability);
             
             if (unit == null)
             {
@@ -181,22 +182,66 @@ namespace Dokkaebi.Core.Networking.Commands
                 return false;
             }
 
-            SmartLogger.Log($"[AbilityCommand.Validate] Checking Ownership... IsPlayer: {unit.IsPlayer()}", LogCategory.Ability);
-            
-            if (!unit.IsPlayer())
+            // Get turn system core for phase and turn validation
+            var turnSystemCore = DokkaebiTurnSystemCore.Instance;
+            if (turnSystemCore == null)
             {
-                SmartLogger.LogWarning($"[AbilityCommand.Validate] FAILED: Unit {UnitId} not owned by player", LogCategory.Ability);
+                SmartLogger.LogWarning("[AbilityCommand.Validate] FAILED: TurnSystemCore not found", LogCategory.Ability);
                 return false;
             }
 
-            var turnSystemCore = DokkaebiTurnSystemCore.Instance;
-            var canUseAuraCheck = turnSystemCore?.CanUnitUseAura(unit) ?? false;
+            // Check if we're in a valid phase for ability usage
+            var currentPhase = turnSystemCore.CurrentPhase;
+            bool isValidPhase = currentPhase == TurnPhase.AuraPhase1A || 
+                               currentPhase == TurnPhase.AuraPhase1B || 
+                               currentPhase == TurnPhase.AuraPhase2A || 
+                               currentPhase == TurnPhase.AuraPhase2B;
             
-            SmartLogger.Log($"[AbilityCommand.Validate] Checking Turn/Phase... turnSystemCore Found: {turnSystemCore != null}, CanUnitUseAura result: {canUseAuraCheck}", LogCategory.Ability);
+            SmartLogger.Log($"[AbilityCommand.Validate] Phase Check - Current: {currentPhase}, IsValidPhase: {isValidPhase}", LogCategory.Ability);
             
-            if (!canUseAuraCheck)
+            if (!isValidPhase)
             {
-                SmartLogger.LogWarning($"[AbilityCommand.Validate] FAILED: Not correct turn/phase or unit cannot use aura. Current Phase: {turnSystemCore?.CurrentPhase}", LogCategory.Ability);
+                SmartLogger.LogWarning($"[AbilityCommand.Validate] FAILED: Invalid phase {currentPhase} for ability usage", LogCategory.Ability);
+                return false;
+            }
+
+            // For AI units, check if they can act in the current phase
+            bool isAI = !unit.IsPlayer();
+            if (isAI)
+            {
+                bool canActInPhase = (currentPhase == TurnPhase.AuraPhase1B && turnSystemCore.GetActivePlayer() == 1) ||
+                                    (currentPhase == TurnPhase.AuraPhase2B && turnSystemCore.GetActivePlayer() == 2);
+                
+                SmartLogger.Log($"[AbilityCommand.Validate] AI Phase Check - Phase: {currentPhase}, ActivePlayer: {turnSystemCore.GetActivePlayer()}, CanActInPhase: {canActInPhase}", LogCategory.Ability);
+                
+                if (!canActInPhase)
+                {
+                    SmartLogger.LogWarning($"[AbilityCommand.Validate] FAILED: AI unit cannot act in phase {currentPhase}", LogCategory.Ability);
+                    return false;
+                }
+            }
+            else
+            {
+                // For player units, check if they can act in the current phase
+                bool canActInPhase = (currentPhase == TurnPhase.AuraPhase1A && turnSystemCore.GetActivePlayer() == 1) ||
+                                    (currentPhase == TurnPhase.AuraPhase2A && turnSystemCore.GetActivePlayer() == 2);
+                
+                SmartLogger.Log($"[AbilityCommand.Validate] Player Phase Check - Phase: {currentPhase}, ActivePlayer: {turnSystemCore.GetActivePlayer()}, CanActInPhase: {canActInPhase}", LogCategory.Ability);
+                
+                if (!canActInPhase)
+                {
+                    SmartLogger.LogWarning($"[AbilityCommand.Validate] FAILED: Player unit cannot act in phase {currentPhase}", LogCategory.Ability);
+                    return false;
+                }
+            }
+
+            // Check if the unit can use aura abilities
+            bool canUseAura = turnSystemCore.CanUnitUseAura(unit);
+            SmartLogger.Log($"[AbilityCommand.Validate] Checking CanUseAura... Result: {canUseAura}", LogCategory.Ability);
+            
+            if (!canUseAura)
+            {
+                SmartLogger.LogWarning("[AbilityCommand.Validate] FAILED: Unit cannot use aura abilities", LogCategory.Ability);
                 return false;
             }
 
@@ -383,6 +428,8 @@ namespace Dokkaebi.Core.Networking.Commands
 
         public override void Execute()
         {
+            SmartLogger.Log($"[AbilityCommand.Execute] ENTRY. UnitId: {UnitId}, AbilityIndex: {AbilityIndex}, TargetPosition: {TargetPosition}", LogCategory.Ability);
+            
             var unitManager = UnitManager.Instance;
             var abilityManager = UnityEngine.Object.FindObjectOfType<AbilityManager>();
             
@@ -392,50 +439,65 @@ namespace Dokkaebi.Core.Networking.Commands
                 return;
             }
 
-            // --- LOGGING FOR SECOND TARGET UNIT ID IN ABILITYCOMMAND.EXECUTE ---
-            SmartLogger.Log($"[AbilityCommand.Execute] ENTRY - CommandType: {CommandType}, UnitId: {UnitId}, AbilityIndex: {AbilityIndex}, TargetPosition: {TargetPosition}. SecondTargetUnitId (property): {this.SecondTargetUnitId?.ToString() ?? "NULL"}.", LogCategory.Networking);
-            // --- END LOGGING ---
-
-            var unit = unitManager.GetUnitById(UnitId);
+            var unit = unitManager.GetUnitById(UnitId) as DokkaebiUnit;
             if (unit == null)
             {
-                SmartLogger.LogError($"[AbilityCommand.Execute] Unit {UnitId} not found", LogCategory.Ability);
+                SmartLogger.LogError($"[AbilityCommand.Execute] Unit with ID {UnitId} not found", LogCategory.Ability);
                 return;
             }
 
-            // Get ability data
             var abilities = unit.GetAbilities();
             if (AbilityIndex < 0 || AbilityIndex >= abilities.Count)
             {
-                SmartLogger.LogError($"[AbilityCommand.Execute] Invalid ability index {AbilityIndex}", LogCategory.Ability);
+                SmartLogger.LogError($"[AbilityCommand.Execute] Invalid ability index {AbilityIndex} for unit {unit.GetUnitName()}", LogCategory.Ability);
                 return;
             }
-            var abilityData = abilities[AbilityIndex];
 
-            // Convert Vector2Int to GridPosition for target
-            GridPosition targetGridPos = new GridPosition(TargetPosition.x, TargetPosition.y);
-            var targetUnit = unitManager.GetUnitAtPosition(targetGridPos);
-
-            // Add these logs to trace target unit identification
-            SmartLogger.Log($"[AbilityCommand.Execute] Preparing to call AbilityManager.ExecuteAbility.", LogCategory.Ability);
-            SmartLogger.Log($"  - Caster (from UnitId): {(unit ? unit.GetUnitName() : "NULL")} (ID: {unit?.UnitId})", LogCategory.Ability);
-            SmartLogger.Log($"  - Target Position: {targetGridPos}", LogCategory.Ability);
-            SmartLogger.Log($"  - Target Unit (found at pos): {(targetUnit ? targetUnit.GetUnitName() : "NULL")} (ID: {targetUnit?.UnitId})", LogCategory.Ability);
-            if (unit == targetUnit) {
-                SmartLogger.LogWarning($"[AbilityCommand.Execute] Caster IS the found target unit!", LogCategory.Ability);
+            var ability = abilities[AbilityIndex];
+            if (ability == null)
+            {
+                SmartLogger.LogError($"[AbilityCommand.Execute] Ability at index {AbilityIndex} is null for unit {unit.GetUnitName()}", LogCategory.Ability);
+                return;
             }
 
-            // Determine if ability should be overloaded
-            bool isOverload = unit.GetCurrentMP() >= 7 && abilityData.requiresOverload;
+            SmartLogger.Log($"[AbilityCommand.Execute] Found ability: {ability.displayName} for unit {unit.GetUnitName()}", LogCategory.Ability);
 
-            SmartLogger.Log($"[AbilityCommand.Execute] Executing ability {abilityData.displayName} from unit {unit.DisplayName} targeting position {targetGridPos} (Unit: {targetUnit?.DisplayName ?? "None"})", LogCategory.Ability);
-            
-            // --- LOGGING FOR SECOND TARGET UNIT ID BEFORE ABILITYMANAGER CALL ---
-            SmartLogger.Log($"[AbilityCommand.Execute] Calling AbilityManager.ExecuteAbility. Caster ID: {unit?.UnitId}, Ability Index: {AbilityIndex}, Target Position: {targetGridPos}, Target Unit (at pos): {targetUnit?.UnitId ?? -1}. SecondTargetUnitId (arg): {this.SecondTargetUnitId?.ToString() ?? "NULL"}.", LogCategory.Networking);
-            // --- END LOGGING ---
-            abilityManager.ExecuteAbility(abilityData, unit, targetGridPos, targetUnit as DokkaebiUnit, isOverload, this.TargetZoneId, this.SecondTargetUnitId);
+            // Get target unit if any
+            DokkaebiUnit targetUnit = null;
+            if (TargetZoneId.HasValue)
+            {
+                targetUnit = unitManager.GetUnitById(TargetZoneId.Value) as DokkaebiUnit;
+                SmartLogger.Log($"[AbilityCommand.Execute] Target unit found: {targetUnit?.GetUnitName() ?? "NULL"}", LogCategory.Ability);
+            }
+            else if (!ability.targetsGround)
+            {
+                // If no explicit target unit ID but ability requires a unit target, try to find unit at position
+                targetUnit = unitManager.GetUnitAtPosition(GridPosition.FromVector2Int(TargetPosition)) as DokkaebiUnit;
+                SmartLogger.Log($"[AbilityCommand.Execute] Target unit found at position: {targetUnit?.GetUnitName() ?? "NULL"}", LogCategory.Ability);
+            }
 
-            SmartLogger.Log($"[AbilityCommand.Execute] Executing ability command. Target Unit: {(targetUnit ? targetUnit.DisplayName : "NULL")}, Target Position: {targetGridPos}", LogCategory.Ability);
+            // Get second target unit if any
+            DokkaebiUnit secondTargetUnit = null;
+            if (SecondTargetUnitId.HasValue)
+            {
+                secondTargetUnit = unitManager.GetUnitById(SecondTargetUnitId.Value) as DokkaebiUnit;
+                SmartLogger.Log($"[AbilityCommand.Execute] Second target unit found: {secondTargetUnit?.GetUnitName() ?? "NULL"}", LogCategory.Ability);
+            }
+
+            // Log ability execution details
+            SmartLogger.Log($"[AbilityCommand.Execute] Executing ability with details:", LogCategory.Ability);
+            SmartLogger.Log($"- Source Unit: {unit.GetUnitName()} (ID: {UnitId})", LogCategory.Ability);
+            SmartLogger.Log($"- Ability: {ability.displayName} (Index: {AbilityIndex})", LogCategory.Ability);
+            SmartLogger.Log($"- Target Position: {TargetPosition}", LogCategory.Ability);
+            SmartLogger.Log($"- Target Unit: {targetUnit?.GetUnitName() ?? "None"} (ID: {TargetZoneId?.ToString() ?? "None"})", LogCategory.Ability);
+            SmartLogger.Log($"- Second Target Unit: {secondTargetUnit?.GetUnitName() ?? "None"} (ID: {SecondTargetUnitId?.ToString() ?? "None"})", LogCategory.Ability);
+            SmartLogger.Log($"- Target Zone ID: {TargetZoneId?.ToString() ?? "None"}", LogCategory.Ability);
+
+            // Execute the ability
+            SmartLogger.Log($"[AbilityCommand.Execute] Calling AbilityManager.ExecuteAbility...", LogCategory.Ability);
+            bool success = abilityManager.ExecuteAbility(ability, unit, new GridPosition(TargetPosition.x, TargetPosition.y), targetUnit, false, TargetZoneId, SecondTargetUnitId);
+            SmartLogger.Log($"[AbilityCommand.Execute] AbilityManager.ExecuteAbility result: {success}", LogCategory.Ability);
+            SmartLogger.Log($"[AbilityCommand.Execute] EXIT", LogCategory.Ability);
         }
     }
 } 

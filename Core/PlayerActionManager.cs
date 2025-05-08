@@ -611,105 +611,31 @@ namespace Dokkaebi.Core
         /// </summary>
         public void ExecuteAbilityCommand(int unitId, int abilityIndex, Vector2Int targetPosition, int? targetZoneId = null, int? secondTargetUnitId = null)
         {
+            SmartLogger.Log($"[PlayerActionManager.ExecuteAbilityCommand] ========== START ==========", LogCategory.Ability);
+            SmartLogger.Log($"[PlayerActionManager.ExecuteAbilityCommand] Creating command with parameters:", LogCategory.Ability);
+            SmartLogger.Log($"- Unit ID: {unitId}", LogCategory.Ability);
+            SmartLogger.Log($"- Ability Index: {abilityIndex}", LogCategory.Ability);
+            SmartLogger.Log($"- Target Position: {targetPosition}", LogCategory.Ability);
+            SmartLogger.Log($"- Target Zone ID: {targetZoneId}", LogCategory.Ability);
+            SmartLogger.Log($"- Second Target Unit ID: {secondTargetUnitId}", LogCategory.Ability);
+
+            // Log turn system state
+            var turnSystemCore = DokkaebiTurnSystemCore.Instance;
+            if (turnSystemCore != null)
+            {
+                SmartLogger.Log($"[PlayerActionManager.ExecuteAbilityCommand] Turn System State:", LogCategory.Ability);
+                SmartLogger.Log($"- Current Phase: {turnSystemCore.CurrentPhase}", LogCategory.Ability);
+                SmartLogger.Log($"- Active Player: {turnSystemCore.GetActivePlayer()}", LogCategory.Ability);
+            }
+
             // Create the command, passing the optional targetZoneId and secondTargetUnitId
             var command = new AbilityCommand(unitId, abilityIndex, targetPosition, targetZoneId, secondTargetUnitId);
+            SmartLogger.Log($"[PlayerActionManager.ExecuteAbilityCommand] Created AbilityCommand instance", LogCategory.Ability);
             
             // Execute the command through our generic handler
+            SmartLogger.Log($"[PlayerActionManager.ExecuteAbilityCommand] Forwarding to ExecuteCommand", LogCategory.Ability);
             ExecuteCommand(command);
-        }
-
-        /// <summary>
-        /// Check if a unit is a valid target for the currently selected ability
-        /// </summary>
-        private bool IsValidAbilityTarget(DokkaebiUnit targetUnit)
-        {
-            SmartLogger.Log($"[PAM.IsValidAbilityTarget] START validation for target: {targetUnit?.GetUnitName() ?? "NULL"} (ID: {targetUnit?.UnitId}) for ability: {(selectedAbility?.displayName ?? "NULL")}", LogCategory.Ability, this);
-            if (selectedAbility == null || selectedUnit == null || targetUnit == null)
-            {
-                SmartLogger.LogWarning($"[PAM.IsValidAbilityTarget] FAILED: Null check failed. Ability: {selectedAbility != null}, Caster: {selectedUnit != null}, Target: {targetUnit != null}", LogCategory.Ability);
-                return false;
-            }
-            // After checking for null references at the start
-            SmartLogger.Log($"[PAM.IsValidAbilityTarget] Initial null checks passed. Target: {targetUnit.GetUnitName()}, Caster: {selectedUnit.GetUnitName()}, Ability: {selectedAbility.displayName}.", LogCategory.Ability, this);
-
-            var targetPos = targetUnit.GetGridPosition();
-            int distance = GridPosition.GetManhattanDistance(selectedUnit.GetGridPosition(), targetPos);
-            int effectiveRange = AbilityManager.Instance != null
-                ? AbilityManager.Instance.GetEffectiveRange(selectedAbility, selectedUnit)
-                : selectedAbility.range;
-            SmartLogger.Log($"[PAM.IsValidAbilityTarget] Range check: Distance {distance} vs Effective Range {effectiveRange}.", LogCategory.Ability, this);
-            bool isInRange = distance <= effectiveRange;
-            if (!isInRange)
-            {
-                SmartLogger.LogWarning($"[PAM.IsValidAbilityTarget] FAILED: Target unit at position {targetPos} is out of effective range (Distance: {distance} > Effective Range: {effectiveRange})", LogCategory.Ability, this);
-                return false;
-            }
-            // Before the 'if (selectedAbility.targetsGround)' check
-            SmartLogger.Log($"[PAM.IsValidAbilityTarget] Checking targetsGround flag ({selectedAbility.targetsGround}).", LogCategory.Ability, this);
-            if (selectedAbility.targetsGround)
-            {
-                SmartLogger.Log($"[PAM.IsValidAbilityTarget] Ground-targeting ability check - Target is in range. PASSED.", LogCategory.Ability);
-                SmartLogger.Log($"[PAM.IsValidAbilityTarget] Validation complete. Final result: true.", LogCategory.Ability, this);
-                return true;
-            }
-            // Before the 'if (targetUnit == null)' check for non-ground abilities
-            if (!selectedAbility.targetsGround)
-            {
-                SmartLogger.Log($"[PAM.IsValidAbilityTarget] Not a ground-targeting ability. Checking if targetUnit is null ({targetUnit == null}).", LogCategory.Ability, this);
-            }
-            if (targetUnit == null)
-            {
-                SmartLogger.LogWarning($"[PAM.IsValidAbilityTarget] FAILED: Target Unit is null for non-ground ability.", LogCategory.Ability, this);
-                return false;
-            }
-            // Before the 'if (!targetUnit.IsAlive)' check
-            SmartLogger.Log($"[PAM.IsValidAbilityTarget] Target unit is not null. Checking if alive ({targetUnit.IsAlive}).", LogCategory.Ability, this);
-            if (!targetUnit.IsAlive)
-            {
-                SmartLogger.LogWarning($"[PAM.IsValidAbilityTarget] FAILED: Target unit is not alive", LogCategory.Ability, this);
-                return false;
-            }
-            // Before calculating canTargetSelf, canTargetAlly, canTargetEnemy
-            SmartLogger.Log($"[PAM.IsValidAbilityTarget] Target unit is alive. Calculating targeting flags...", LogCategory.Ability, this);
-            bool canTargetSelf = selectedAbility.targetsSelf && targetUnit.UnitId == selectedUnit.UnitId;
-            bool canTargetAlly = selectedAbility.targetsAlly && targetUnit.TeamId == selectedUnit.TeamId && targetUnit.UnitId != selectedUnit.UnitId;
-            bool canTargetEnemy = selectedAbility.targetsEnemy && targetUnit.IsPlayerControlled != selectedUnit.IsPlayerControlled;
-            // Before the 'bool unitTypeIsValid = canTargetSelf || canTargetAlly || canTargetEnemy;' check
-            SmartLogger.Log($"[PAM.IsValidAbilityTarget] Targeting flag calculations complete. Checking if unit type is valid (Self:{canTargetSelf} || Ally:{canTargetAlly} || Enemy:{canTargetEnemy}).", LogCategory.Ability, this);
-            bool unitTypeIsValid = canTargetSelf || canTargetAlly || canTargetEnemy;
-            if (!unitTypeIsValid)
-            {
-                SmartLogger.LogWarning($"[PAM.IsValidAbilityTarget] FAILED: Invalid target type. None of the targeting conditions were met (Self: {canTargetSelf}, Ally: {canTargetAlly}, Enemy: {canTargetEnemy})", LogCategory.Ability, this);
-                SmartLogger.Log($"[PAM.IsValidAbilityTarget] Validation complete. Final result: false.", LogCategory.Ability, this);
-                return false;
-            }
-            SmartLogger.Log($"[PAM.IsValidAbilityTarget] PASSED: Target '{targetUnit?.GetUnitName()}' is valid for ability '{selectedAbility?.displayName}'", LogCategory.Ability, this);
-            SmartLogger.Log($"[PAM.IsValidAbilityTarget] Validation complete. Final result: true.", LogCategory.Ability, this);
-            return true;
-        }
-
-        /// <summary>
-        /// Execute an end turn command
-        /// </summary>
-        public void ExecuteEndTurnCommand()
-        {
-            // Create the command
-            var command = new EndTurnCommand();
-            
-            // Execute the command through our generic handler
-            ExecuteCommand(command);
-        }
-
-        /// <summary>
-        /// Execute a tactical reposition command
-        /// </summary>
-        public void ExecuteRepositionCommand(int unitId, Vector2Int targetPosition)
-        {
-            // Create the command
-            var command = new RepositionCommand(unitId, targetPosition);
-            
-            // Execute the command through our generic handler
-            ExecuteCommand(command);
+            SmartLogger.Log($"[PlayerActionManager.ExecuteAbilityCommand] ========== END ==========", LogCategory.Ability);
         }
 
         /// <summary>
@@ -717,98 +643,120 @@ namespace Dokkaebi.Core
         /// </summary>
         private void ExecuteCommand(ICommand command)
         {
-            SmartLogger.Log($"[PAM.ExecuteCommand] ENTRY with command type: {command?.CommandType ?? "NULL"}", LogCategory.Ability);
+            bool isAICommand = command != null && command.GetType().Namespace != null && command.GetType().Namespace.Contains("AI");
+            SmartLogger.Log($"[AI] [PlayerActionManager.ExecuteCommand] Executing command of type: {command?.GetType().Name}. Origin: {(isAICommand ? "AI" : "Player")}", LogCategory.AI, this);
+            SmartLogger.Log("[AI] [PlayerActionManager.ExecuteCommand] Validating command...", LogCategory.AI, this);
+            
             if (command == null)
             {
                 DebugLog("Cannot execute null command");
-                SmartLogger.LogWarning("[PAM.ExecuteCommand] Command was NULL, aborting execution", LogCategory.Ability);
+                SmartLogger.LogWarning("[PlayerActionManager.ExecuteCommand] Command was NULL, aborting execution", LogCategory.Ability);
                 OnCommandResult?.Invoke(false, "Invalid command");
                 return;
             }
+            
             DebugLog($"Executing command: {command.CommandType}");
-            SmartLogger.Log($"[PAM.ExecuteCommand] About to check local validation (useLocalValidationFirst: {useLocalValidationFirst})", LogCategory.Ability);
+            SmartLogger.Log($"[PlayerActionManager.ExecuteCommand] About to check local validation (useLocalValidationFirst: {useLocalValidationFirst})", LogCategory.Ability);
+            
             // Local validation if enabled
             if (useLocalValidationFirst)
             {
-                SmartLogger.Log($"[PAM.ExecuteCommand] Starting local validation for command: {command.CommandType}", LogCategory.Ability);
+                SmartLogger.Log($"[PlayerActionManager.ExecuteCommand] Starting local validation for command: {command.CommandType}", LogCategory.Ability);
                 bool isValid = command.Validate();
-                SmartLogger.Log($"[PAM.ExecuteCommand] Local validation result: {isValid} for command: {command.CommandType}", LogCategory.Ability);
+                SmartLogger.Log($"[PlayerActionManager.ExecuteCommand] Local validation result: {isValid} for command: {command.CommandType}", LogCategory.Ability);
+                
+                // For AbilityCommand, log validation details
+                if (command is AbilityCommand abilityCommand)
+                {
+                    SmartLogger.Log($"[PlayerActionManager.ExecuteCommand] Validating AbilityCommand - Unit: {abilityCommand.UnitId}, Ability Index: {abilityCommand.AbilityIndex}", LogCategory.Ability);
+                    if (!isValid)
+                    {
+                        SmartLogger.LogWarning($"[PlayerActionManager.ExecuteCommand] AbilityCommand validation FAILED. Check ability index and target validity.", LogCategory.Ability);
+                    }
+                }
+                
                 if (!isValid)
                 {
                     DebugLog($"Command validation failed: {command.CommandType}");
-                    SmartLogger.LogWarning($"[PAM.ExecuteCommand] Validation FAILED for command: {command.CommandType}", LogCategory.Ability);
+                    SmartLogger.LogWarning($"[PlayerActionManager.ExecuteCommand] Validation FAILED for command: {command.CommandType}", LogCategory.Ability);
                     OnCommandResult?.Invoke(false, "Command validation failed");
                     // We should cancel targeting state here if the validation failed while targeting an ability
-                    if (currentState == ActionState.SelectingAbilityTarget || currentState == ActionState.SelectingZoneDestination) // Include new state
+                    if (currentState == ActionState.SelectingAbilityTarget || currentState == ActionState.SelectingZoneDestination)
                     {
                         CancelAbilityTargeting();
                     }
                     return;
                 }
             }
-            SmartLogger.Log($"[PAM.ExecuteCommand] About to check local execution (enableLocalExecution: {enableLocalExecution})", LogCategory.Ability);
+            
+            SmartLogger.Log($"[PlayerActionManager.ExecuteCommand] About to check local execution (enableLocalExecution: {enableLocalExecution})", LogCategory.Ability);
 
             // --- MODIFIED LOGIC START ---
             if (enableLocalExecution)
             {
-                SmartLogger.Log($"[PAM.ExecuteCommand] About to execute command locally: {command.CommandType}", LogCategory.Ability);
+                SmartLogger.Log($"[PlayerActionManager.ExecuteCommand] About to execute command locally: {command.CommandType}", LogCategory.Ability);
+                
+                // For AbilityCommand, log execution details
+                if (command is AbilityCommand abilityCommand)
+                {
+                    var unit = unitManager.GetUnitById(abilityCommand.UnitId);
+                    var ability = unit?.GetAbilities()?[abilityCommand.AbilityIndex];
+                    SmartLogger.Log($"[PlayerActionManager.ExecuteCommand] Executing AbilityCommand - Unit: {unit?.GetUnitName() ?? "Unknown"}, Ability: {ability?.displayName ?? "Unknown"}, Target Position: {abilityCommand.TargetPosition}", LogCategory.Ability);
+                }
+                
                 command.Execute();
-                SmartLogger.Log($"[PAM.ExecuteCommand] Local execution completed for command: {command.CommandType}", LogCategory.Ability);
+                SmartLogger.Log($"[PlayerActionManager.ExecuteCommand] Local execution completed for command: {command.CommandType}", LogCategory.Ability);
                 DebugLog($"Command executed locally: {command.CommandType}");
+                
                 // For local execution, we are done. Report success and trigger UI/state updates.
                 OnCommandResult?.Invoke(true, "Command executed successfully (local mode)");
+                
                 // If we were in a targeting state, cancel it after successful local execution
-                if (currentState == ActionState.SelectingAbilityTarget || currentState == ActionState.SelectingZoneDestination) // Include new state
+                if (currentState == ActionState.SelectingAbilityTarget || currentState == ActionState.SelectingZoneDestination)
                 {
-                    // Use SmartLogger with stack trace for clarity
-                    SmartLogger.LogWarning($"[PAM ExecuteCommand LOCAL Success] Command '{command?.CommandType ?? "NULL"}' completed locally. State '{currentState}' requires reset via CancelAbilityTargeting. Stack trace:\n{System.Environment.StackTrace}", LogCategory.Ability);
+                    SmartLogger.LogWarning($"[PlayerActionManager.ExecuteCommand LOCAL Success] Command '{command?.CommandType ?? "NULL"}' completed locally. State '{currentState}' requires reset via CancelAbilityTargeting. Stack trace:\n{System.Environment.StackTrace}", LogCategory.Ability);
                     CancelAbilityTargeting();
                 }
             }
             else if (networkManager != null)
             {
                 // Only attempt network execution if local execution is NOT enabled AND networkManager exists
-                SmartLogger.Log($"[PAM.ExecuteCommand] Sending command to NetworkManager: {command.CommandType}", LogCategory.Ability);
+                SmartLogger.Log($"[PlayerActionManager.ExecuteCommand] Sending command to NetworkManager: {command.CommandType}", LogCategory.Ability);
                 DebugLog($"Sending command to network: {command.CommandType}");
                 networkManager.ExecuteCommand(
                     command.CommandType,
                     command.Serialize(),
                     result =>
                     {
-                        SmartLogger.Log($"[PAM.ExecuteCommand] Network execution SUCCESS for command: {command.CommandType}", LogCategory.Ability);
+                        SmartLogger.Log($"[PlayerActionManager.ExecuteCommand] Network execution SUCCESS for command: {command.CommandType}", LogCategory.Ability);
                         DebugLog($"Network execution succeeded: {command.CommandType}");
                         OnCommandResult?.Invoke(true, "Command executed successfully");
                         // If we were in a targeting state, cancel it after successful network execution
-                        if (currentState == ActionState.SelectingAbilityTarget || currentState == ActionState.SelectingZoneDestination) // Include new state
+                        if (currentState == ActionState.SelectingAbilityTarget || currentState == ActionState.SelectingZoneDestination)
                         {
-                            // Use SmartLogger with stack trace for clarity
-                            SmartLogger.LogWarning($"[PAM ExecuteCommand NETWORK Success] Command '{command?.CommandType ?? "NULL"}' completed via network. State '{currentState}' requires reset via CancelAbilityTargeting. Stack trace:\n{System.Environment.StackTrace}", LogCategory.Ability);
+                            SmartLogger.LogWarning($"[PlayerActionManager.ExecuteCommand NETWORK Success] Command '{command?.CommandType ?? "NULL"}' completed via network. State '{currentState}' requires reset via CancelAbilityTargeting. Stack trace:\n{System.Environment.StackTrace}", LogCategory.Ability);
                             CancelAbilityTargeting();
                         }
                     },
                     error =>
                     {
-                        SmartLogger.LogError($"[PAM.ExecuteCommand] Network execution FAILED for command: {command.CommandType}. Error: {error}", LogCategory.Ability);
-                        DebugLog($"Network execution failed: {command.CommandType} - {error}");
+                        SmartLogger.LogError($"[PlayerActionManager.ExecuteCommand] Network execution FAILED for command: {command.CommandType}. Error: {error}", LogCategory.Ability);
+                        DebugLog($"Network execution failed: {command.CommandType}. Error: {error}");
                         OnCommandResult?.Invoke(false, error);
-                        // Always reset targeting state on failure
-                        if (currentState == ActionState.SelectingAbilityTarget || currentState == ActionState.SelectingZoneDestination) // Include new state
+                        // We should cancel targeting state here if the network execution failed while targeting an ability
+                        if (currentState == ActionState.SelectingAbilityTarget || currentState == ActionState.SelectingZoneDestination)
                         {
-                            // Use SmartLogger with stack trace for clarity
-                            SmartLogger.LogWarning($"[PAM ExecuteCommand NETWORK Error] Command '{command?.CommandType ?? "NULL"}' failed via network. State '{currentState}' requires reset via CancelAbilityTargeting. Stack trace:\n{System.Environment.StackTrace}", LogCategory.Ability);
                             CancelAbilityTargeting();
                         }
-                    }
-                );
+                    });
             }
             else
             {
-                // This case should ideally not be reached if setup is correct for either local or network play
-                SmartLogger.LogError($"[PAM.ExecuteCommand] No execution path available for command: {command.CommandType}. enableLocalExecution={enableLocalExecution}, networkManager={networkManager != null}", LogCategory.Ability);
-                DebugLog("No execution path available.");
-                OnCommandResult?.Invoke(false, "No execution path available");
+                SmartLogger.LogError("[PlayerActionManager.ExecuteCommand] Cannot execute command: No NetworkManager and local execution disabled", LogCategory.Ability);
+                OnCommandResult?.Invoke(false, "No execution method available");
             }
-            // --- MODIFIED LOGIC END ---
+            
+            SmartLogger.Log($"[PlayerActionManager.ExecuteCommand] ========== END ==========", LogCategory.Ability);
         }
 
         /// <summary>
@@ -852,5 +800,86 @@ namespace Dokkaebi.Core
         // Temporary public getter for UI debugging
         // public IZoneInstance selectedZoneToShiftPublic => selectedZoneToShift; // Remove this property
         public DokkaebiUnit FirstTargetUnit => firstTargetUnit; // Public property to access the first target
+
+        /// <summary>
+        /// Allows AI systems to submit a generic command for execution.
+        /// </summary>
+        public void SubmitAICommand(ICommand command)
+        {
+            SmartLogger.Log($"[AI] [PlayerActionManager.SubmitAICommand] Received command of type: {command?.GetType().Name}", LogCategory.AI, this);
+            
+            if (command == null)
+            {
+                SmartLogger.LogError("[PlayerActionManager.SubmitAICommand] Cannot submit null command", LogCategory.AI, this);
+                return;
+            }
+
+            // Get unit ID if available
+            var unitId = "N/A";
+            var unitIdProp = command.GetType().GetProperty("UnitId");
+            if (unitIdProp != null)
+            {
+                unitId = unitIdProp.GetValue(command)?.ToString() ?? "N/A";
+            }
+
+            SmartLogger.Log($"[PlayerActionManager.SubmitAICommand] Processing command for unit {unitId}", LogCategory.AI, this);
+            
+            // Execute the command through our standard pipeline
+            ExecuteCommand(command);
+            
+            SmartLogger.Log($"[PlayerActionManager.SubmitAICommand] EXIT - Command submitted for execution", LogCategory.AI, this);
+        }
+
+        /// <summary>
+        /// Check if a target unit is valid for the currently selected ability
+        /// </summary>
+        private bool IsValidAbilityTarget(DokkaebiUnit targetUnit)
+        {
+            if (selectedAbility == null || selectedUnit == null)
+            {
+                SmartLogger.LogWarning("[PAM.IsValidAbilityTarget] No ability or unit selected", LogCategory.Ability);
+                return false;
+            }
+
+            // Get target position from unit
+            var targetPos = targetUnit.GetGridPosition();
+            var sourcePos = selectedUnit.GetGridPosition();
+            
+            // Check range first
+            int distance = GridPosition.GetManhattanDistance(sourcePos, targetPos);
+            if (distance > selectedAbility.range)
+            {
+                SmartLogger.Log($"[PAM.IsValidAbilityTarget] Target out of range. Distance: {distance}, Range: {selectedAbility.range}", LogCategory.Ability);
+                return false;
+            }
+
+            // Check if target is alive
+            if (!targetUnit.IsAlive)
+            {
+                SmartLogger.Log("[PAM.IsValidAbilityTarget] Target unit is not alive", LogCategory.Ability);
+                return false;
+            }
+
+            // Check unit targeting rules
+            bool canTargetSelf = selectedAbility.targetsSelf && targetUnit == selectedUnit;
+            bool canTargetAlly = selectedAbility.targetsAlly && targetUnit != selectedUnit && targetUnit.IsPlayer() == selectedUnit.IsPlayer();
+            bool canTargetEnemy = selectedAbility.targetsEnemy && targetUnit.IsPlayer() != selectedUnit.IsPlayer();
+
+            bool isValidTarget = canTargetSelf || canTargetAlly || canTargetEnemy;
+
+            SmartLogger.Log($"[PAM.IsValidAbilityTarget] Unit targeting check - CanTargetSelf: {canTargetSelf}, CanTargetAlly: {canTargetAlly}, CanTargetEnemy: {canTargetEnemy}, Final result: {isValidTarget}", LogCategory.Ability);
+
+            return isValidTarget;
+        }
+
+        /// <summary>
+        /// Execute an end turn command
+        /// </summary>
+        public void ExecuteEndTurnCommand()
+        {
+            SmartLogger.Log("[PlayerActionManager.ExecuteEndTurnCommand] Creating EndTurnCommand", LogCategory.TurnSystem);
+            var command = new EndTurnCommand();
+            ExecuteCommand(command);
+        }
     }
 } 

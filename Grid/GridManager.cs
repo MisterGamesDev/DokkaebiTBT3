@@ -5,6 +5,7 @@ using Dokkaebi.Common;
 using Dokkaebi.Interfaces;
 using Dokkaebi.Utilities;
 using Dokkaebi.Core;
+using Dokkaebi.AI.Data; // For AIGridState
 
 
 namespace Dokkaebi.Grid
@@ -101,35 +102,45 @@ public float GetGridCellSize()
         
         private void InitializeGrid()
         {
+            SmartLogger.Log("[GridManager.InitializeGrid] ENTRY", LogCategory.Grid, this);
             // Reset collections
             gridCells.Clear();
             gridZones.Clear();
             walkablePositions.Clear();
-            
+            SmartLogger.Log("[GridManager.InitializeGrid] Cleared gridCells, gridZones, walkablePositions.", LogCategory.Grid, this);
             // Initialize grid cells
+            SmartLogger.Log($"[GridManager.InitializeGrid] About to enter nested for loops for grid size {gridWidth}x{gridHeight}.", LogCategory.Grid, this);
             for (int x = 0; x < gridWidth; x++)
             {
                 for (int z = 0; z < gridHeight; z++)
                 {
                     GridPosition pos = new GridPosition(x, z);
-                    gridCells[pos] = new GridCell(pos);
-                    walkablePositions[pos] = true;
-                    
-                    // Initialize empty zone lists for each position
-                    gridZones[pos] = new List<IZoneInstance>();
+                    SmartLogger.Log($"[GridManager.InitializeGrid] Processing cell at pos.x={pos.x}, pos.z={pos.z}", LogCategory.Grid, this);
+                    try
+                    {
+                        gridCells[pos] = new GridCell(pos);
+                        walkablePositions[pos] = true;
+                        // Initialize empty zone lists for each position
+                        gridZones[pos] = new List<IZoneInstance>();
+                    }
+                    catch (System.Exception ex)
+                    {
+                        SmartLogger.LogError($"[GridManager.InitializeGrid] Exception at pos.x={pos.x}, pos.z={pos.z}: {ex.Message}\nStack Trace: {ex.StackTrace}", LogCategory.Grid, this);
+                        throw;
+                    }
                 }
             }
-            
-            // Create visual grid if debug visuals are enabled
+            SmartLogger.Log("[GridManager.InitializeGrid] Completed nested for loops for grid cell initialization.", LogCategory.Grid, this);
             if (showDebugVisuals && gridCellPrefab != null)
             {
+                SmartLogger.Log("[GridManager.InitializeGrid] Before CreateVisualGrid() call.", LogCategory.Grid, this);
                 CreateVisualGrid();
+                SmartLogger.Log("[GridManager.InitializeGrid] After CreateVisualGrid() call.", LogCategory.Grid, this);
             }
-            
-            // Create debug cubes
+            SmartLogger.Log("[GridManager.InitializeGrid] Before CreateDebugCubes() call.", LogCategory.Grid, this);
             CreateDebugCubes();
-            
-            SmartLogger.Log($"GridManager initialized with grid size {gridWidth}x{gridHeight}");
+            SmartLogger.Log("[GridManager.InitializeGrid] After CreateDebugCubes() call.", LogCategory.Grid, this);
+            SmartLogger.Log($"[GridManager.InitializeGrid] EXIT - Grid initialized with grid size {gridWidth}x{gridHeight}", LogCategory.Grid, this);
         }
         
         private void CreateVisualGrid()
@@ -1134,6 +1145,60 @@ public GridPosition WorldToNearestGrid(Vector3 worldPos)
             }
 
             return neighbours;
+        }
+
+        /// <summary>
+        /// Builds and returns the AIGridState for the current grid.
+        /// </summary>
+        public AIGridState GetGridState()
+        {
+            SmartLogger.Log("[GridManager.GetGridState] ENTRY - Called to build AI Grid State.", LogCategory.AI, this);
+
+            int width = GetGridWidth();
+            int height = GetGridHeight();
+            SmartLogger.Log($"[GridManager.GetGridState] Starting grid cell iteration to populate AIGridState. Grid dimensions: {width}x{height}", LogCategory.AI, this);
+
+            // Use temporary local dictionaries
+            var tempIsWalkable = new Dictionary<GridPosition, bool>();
+            var tempOccupyingUnitId = new Dictionary<GridPosition, int>();
+
+            for (int x = 0; x < width; x++)
+            {
+                for (int z = 0; z < height; z++)
+                {
+                    GridPosition pos = new GridPosition(x, z);
+                    try
+                    {
+                        var cell = GetCellAtPosition(pos);
+                        if (cell != null)
+                        {
+                            tempIsWalkable[pos] = cell.IsWalkable;
+                            tempOccupyingUnitId[pos] = cell.OccupyingUnit != null ? cell.OccupyingUnit.UnitId : -1;
+                        }
+                        else
+                        {
+                            SmartLogger.LogError($"[GridManager.GetGridState] GetCellAtPosition returned NULL for {pos.x},{pos.z}", LogCategory.AI, this);
+                        }
+                    }
+                    catch (System.Exception ex)
+                    {
+                        SmartLogger.LogError($"[GridManager.GetGridState] EXCEPTION caught during AIGridState population at {pos.x},{pos.z}: {ex.Message}\n{ex.StackTrace}", LogCategory.AI, this);
+                        // Continue to next cell
+                    }
+                }
+            }
+
+            // --- NOW, assign the temporary dictionaries to aiGridState *after* the loops ---
+            SmartLogger.Log("[GridManager.GetGridState] Completed nested for loops. Assigning temporary dictionaries.", LogCategory.AI, this); // See if THIS log appears now
+
+            var aiGridState = new AIGridState(); // Create the AIGridState object AFTER populating temp dictionaries
+            aiGridState.IsWalkable = tempIsWalkable;
+            aiGridState.OccupyingUnitId = tempOccupyingUnitId;
+
+            SmartLogger.Log($"[GridManager.GetGridState] About to return. IsWalkable.Count: {aiGridState.IsWalkable.Count}, OccupyingUnitId.Count: {aiGridState.OccupyingUnitId.Count}", LogCategory.AI, this); // See if THIS log appears now
+
+            SmartLogger.Log("[GridManager.GetGridState] EXIT - AIGridState populated.", LogCategory.AI, this);
+            return aiGridState;
         }
     }
     

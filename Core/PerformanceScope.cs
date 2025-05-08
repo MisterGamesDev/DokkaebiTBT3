@@ -15,6 +15,7 @@ namespace Dokkaebi.Core
         
         public PerformanceScope(string name, bool logOnDispose = true)
         {
+             SmartLogger.Log($"--- ENTERING PERF SCOPE CONSTRUCTOR for: {name} ---", LogCategory.Performance, null); // Use null context for simplicity
             scopeName = name;
             this.logOnDispose = logOnDispose;
             stopwatch = Stopwatch.StartNew();

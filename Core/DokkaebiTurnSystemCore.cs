@@ -8,6 +8,8 @@ using Dokkaebi.Core.TurnStates;
 using Dokkaebi.Common;
 using Dokkaebi.Interfaces;
 using Dokkaebi.Pathfinding;
+using Dokkaebi.AI;
+using Dokkaebi.AI.Data;
 
 namespace Dokkaebi.Core
 {
@@ -70,12 +72,40 @@ namespace Dokkaebi.Core
         public TurnPhase CurrentPhase => turnStateContext != null ? turnStateContext.GetCurrentPhase() : TurnPhase.Opening;
         public int ActivePlayerId => turnStateContext != null ? turnStateContext.GetActivePlayer() : 0;
 
-        public int GetActivePlayer() => ActivePlayerId;
+        public UnitStateManager UnitStateManager => unitStateManager;
+
+        public int GetActivePlayer()
+        {
+            var activePlayer = ActivePlayerId;
+            var currentPhase = CurrentPhase;
+            
+            // Log detailed phase and player mapping
+            SmartLogger.Log($"[DTSCore.GetActivePlayer] ========== ACTIVE PLAYER CHECK ==========", LogCategory.TurnSystem, this);
+            SmartLogger.Log($"[DTSCore.GetActivePlayer] Current Phase: {currentPhase}, Active Player: {activePlayer}", LogCategory.TurnSystem, this);
+            SmartLogger.Log($"[DTSCore.GetActivePlayer] Phase Type:", LogCategory.TurnSystem, this);
+            SmartLogger.Log($"- Is Opening: {currentPhase == TurnPhase.Opening}", LogCategory.TurnSystem, this);
+            SmartLogger.Log($"- Is Movement: {currentPhase == TurnPhase.MovementPhase}", LogCategory.TurnSystem, this);
+            SmartLogger.Log($"- Is AuraPhase1A: {currentPhase == TurnPhase.AuraPhase1A}", LogCategory.TurnSystem, this);
+            SmartLogger.Log($"- Is AuraPhase1B: {currentPhase == TurnPhase.AuraPhase1B}", LogCategory.TurnSystem, this);
+            SmartLogger.Log($"- Is AuraPhase2A: {currentPhase == TurnPhase.AuraPhase2A}", LogCategory.TurnSystem, this);
+            SmartLogger.Log($"- Is AuraPhase2B: {currentPhase == TurnPhase.AuraPhase2B}", LogCategory.TurnSystem, this);
+            SmartLogger.Log($"- Is Buffer Phase: {currentPhase == TurnPhase.BufferPhase}", LogCategory.TurnSystem, this);
+            SmartLogger.Log($"- Is Resolution: {currentPhase == TurnPhase.Resolution}", LogCategory.TurnSystem, this);
+            SmartLogger.Log($"- Is EndTurn: {currentPhase == TurnPhase.EndTurn}", LogCategory.TurnSystem, this);
+            SmartLogger.Log($"[DTSCore.GetActivePlayer] Player Mapping:", LogCategory.TurnSystem, this);
+            SmartLogger.Log($"- Player 1 Active: {activePlayer == 1} (Human)", LogCategory.TurnSystem, this);
+            SmartLogger.Log($"- Player 2 Active: {activePlayer == 2} (AI)", LogCategory.TurnSystem, this);
+            SmartLogger.Log($"[DTSCore.GetActivePlayer] ========== END ACTIVE PLAYER CHECK ==========", LogCategory.TurnSystem, this);
+            
+            return activePlayer;
+        }
+
         public TurnPhase GetCurrentPhase() => CurrentPhase;
         public int GetCurrentTurn() => CurrentTurn;
 
         private void Awake()
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: ENTER {nameof(Awake)}");
             if (Instance != null && Instance != this)
             {
                 Destroy(gameObject);
@@ -100,8 +130,19 @@ namespace Dokkaebi.Core
             turnStateContext.OnMovementPhaseEnd += () => OnMovementPhaseEnd?.Invoke();
             turnStateContext.OnTurnResolutionEnd += () => OnTurnResolutionEnd?.Invoke();
 
+            if (turnStateContext != null)
+            {
+                SmartLogger.Log($"[DTSCore.Awake] TurnStateContext initialized. Initial Phase: {turnStateContext.GetCurrentPhase()}, Initial Turn: {turnStateContext.GetCurrentTurn()}", LogCategory.TurnSystem, this);
+            }
+            else
+            {
+                SmartLogger.LogError("[DTSCore.Awake] TurnStateContext failed to initialize!", LogCategory.TurnSystem, this);
+            }
+
             // Register with update manager
             DokkaebiUpdateManager.Instance.RegisterUpdateObserver(this);
+
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: EXIT {nameof(Awake)}");
         }
 
         private void OnDestroy()
@@ -116,61 +157,120 @@ namespace Dokkaebi.Core
             {
                 DokkaebiUpdateManager.Instance.UnregisterUpdateObserver(this);
             }
+
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: EXIT {nameof(OnDestroy)}");
         }
 
         private void HandlePhaseChanged(TurnPhase newPhase)
         {
-            // Log entry
-            SmartLogger.Log($"[DTSCore.HandlePhaseChanged ENTRY] Received phase change event. New Phase: {newPhase}, Current Turn: {turnStateContext.GetCurrentTurn()}", LogCategory.TurnSystem, this);
+            SmartLogger.Log($"[DTSCore.HandlePhaseChanged] ========== PHASE CHANGE START ==========", LogCategory.TurnSystem, this);
+            SmartLogger.Log($"[DTSCore.HandlePhaseChanged] Turn {turnStateContext.GetCurrentTurn()}", LogCategory.TurnSystem, this);
 
-            // Debug.Log($"[DokkaebiTurnSystemCore.HandlePhaseChanged] Phase changed to {newPhase} in Turn {turnStateContext.GetCurrentTurn()}");
+            // Log previous state
+            var previousPhase = CurrentPhase;
+            var previousActivePlayer = turnStateContext.GetActivePlayer();
+            SmartLogger.Log($"[DTSCore.HandlePhaseChanged] Previous State:", LogCategory.TurnSystem, this);
+            SmartLogger.Log($"- Previous Phase: {previousPhase}", LogCategory.TurnSystem, this);
+            SmartLogger.Log($"- Previous Active Player: {previousActivePlayer}", LogCategory.TurnSystem, this);
+
+            // Log new state
+            SmartLogger.Log($"[DTSCore.HandlePhaseChanged] New State:", LogCategory.TurnSystem, this);
+            SmartLogger.Log($"- New Phase: {newPhase}", LogCategory.TurnSystem, this);
+
+            // Fire phase change event
+            SmartLogger.Log($"[DTSCore.HandlePhaseChanged] Firing OnPhaseChanged event...", LogCategory.TurnSystem, this);
             OnPhaseChanged?.Invoke(newPhase);
-            
-            // Fire OnActivePlayerChanged event with the new active player
+            SmartLogger.Log($"[DTSCore.HandlePhaseChanged] OnPhaseChanged event fired", LogCategory.TurnSystem, this);
+
+            // Get and log new active player
             int activePlayer = turnStateContext.GetActivePlayer();
-            OnActivePlayerChanged?.Invoke(activePlayer);
-            
+            SmartLogger.Log($"[DTSCore.HandlePhaseChanged] Active Player Update:", LogCategory.TurnSystem, this);
+            SmartLogger.Log($"- New Active Player: {activePlayer}", LogCategory.TurnSystem, this);
+            SmartLogger.Log($"- Is Player Turn: {activePlayer == 1}", LogCategory.TurnSystem, this);
+            SmartLogger.Log($"- Is AI Turn: {activePlayer == 2}", LogCategory.TurnSystem, this);
+
+            // Fire active player change event if it changed
+            if (activePlayer != previousActivePlayer)
+            {
+                SmartLogger.Log($"[DTSCore.HandlePhaseChanged] Active player changed from {previousActivePlayer} to {activePlayer}. Firing OnActivePlayerChanged event...", LogCategory.TurnSystem, this);
+                OnActivePlayerChanged?.Invoke(activePlayer);
+                SmartLogger.Log($"[DTSCore.HandlePhaseChanged] OnActivePlayerChanged event fired", LogCategory.TurnSystem, this);
+            }
+
+            // Log debug info if enabled
             if (debugLogTurns)
             {
-                SmartLogger.Log($"Turn phase changed to {newPhase}", LogCategory.Debug);
+                SmartLogger.Log($"[DTSCore.HandlePhaseChanged] Debug Info:", LogCategory.Debug, this);
+                SmartLogger.Log($"- Turn Number: {turnStateContext.GetCurrentTurn()}", LogCategory.Debug, this);
+                SmartLogger.Log($"- Phase Duration: {GetPhaseDuration(newPhase)}s", LogCategory.Debug, this);
+                SmartLogger.Log($"- Is Phase Locked: {turnStateContext.IsTransitionLocked}", LogCategory.Debug, this);
             }
-            
-            // Reset unit states at the start of MovementPhase
-            if (newPhase == TurnPhase.MovementPhase) // Assuming Positioning Phase corresponds to MovementPhase start
+
+            // Handle Movement Phase specific logic
+            if (newPhase == TurnPhase.MovementPhase)
             {
-                // Log start of Movement Phase block
-                SmartLogger.Log($"[DTSCore.HandlePhaseChanged] Entering MovementPhase specific logic block for Turn {turnStateContext.GetCurrentTurn()}", LogCategory.TurnSystem, this);
+                SmartLogger.Log($"[DTSCore.HandlePhaseChanged] Entering Movement Phase Logic:", LogCategory.TurnSystem, this);
                 
-                // Get units directly from UnitManager instead of using registeredUnits
                 var allActiveUnits = UnitManager.Instance?.GetAliveUnits();
                 if (allActiveUnits != null)
                 {
-                    // Record positions for all units before resetting states
-                    SmartLogger.Log($"[DTSCore.HandlePhaseChanged] Recording start positions for {allActiveUnits.Count} units...", LogCategory.TurnSystem, this);
+                    SmartLogger.Log($"[DTSCore.HandlePhaseChanged] Processing {allActiveUnits.Count} active units:", LogCategory.TurnSystem, this);
                     foreach (var unit in allActiveUnits)
                     {
                         if (unit != null)
                         {
+                            SmartLogger.Log($"- Unit {unit.UnitId} ({unit.GetUnitName()}):", LogCategory.TurnSystem, this);
+                            SmartLogger.Log($"  * Team: {unit.TeamId}", LogCategory.TurnSystem, this);
+                            SmartLogger.Log($"  * Position: {unit.CurrentGridPosition}", LogCategory.TurnSystem, this);
+                            SmartLogger.Log($"  * Is Player Controlled: {unit.IsPlayerControlled}", LogCategory.TurnSystem, this);
+                            
                             unit.RecordPositionAtTurnStart();
-                            // SmartLogger.Log($"[DokkaebiTurnSystemCore.HandlePhaseChanged] Recorded start position for unit {unit.GetUnitName()} (ID: {unit.UnitId})", LogCategory.TurnSystem);
+                            SmartLogger.Log($"  * Start Position Recorded: {unit.GetPositionAtTurnStart()}", LogCategory.TurnSystem, this);
                         }
                     }
-                     // Log completion of recording positions
-                    SmartLogger.Log($"[DTSCore.HandlePhaseChanged] Finished recording start positions.", LogCategory.TurnSystem, this);
                 }
                 else
                 {
-                    SmartLogger.LogWarning("[DTSCore.HandlePhaseChanged] Could not get active units from UnitManager during MovementPhase start.", LogCategory.TurnSystem, this);
+                    SmartLogger.LogWarning("[DTSCore.HandlePhaseChanged] No active units found or UnitManager is null", LogCategory.TurnSystem, this);
                 }
-                // Log exit of Movement Phase block
-                SmartLogger.Log($"[DTSCore.HandlePhaseChanged] Exiting MovementPhase specific logic block.", LogCategory.TurnSystem, this);
+
+                // Reset movement tracking
+                unitsActedThisPhase.Clear();
+                pendingMoves.Clear();
+                isExecutingMoves = false;
+                totalMovesMade = 0;
+                SmartLogger.Log("[DTSCore.HandlePhaseChanged] Movement tracking variables reset", LogCategory.TurnSystem, this);
             }
-            // Log exit
-            SmartLogger.Log($"[DTSCore.HandlePhaseChanged EXIT] Finished processing phase change to {newPhase}.", LogCategory.TurnSystem, this);
+
+            // Log phase-specific information
+            SmartLogger.Log($"[DTSCore.HandlePhaseChanged] Phase-Specific State:", LogCategory.TurnSystem, this);
+            SmartLogger.Log($"- Units Acted This Phase: {unitsActedThisPhase.Count}", LogCategory.TurnSystem, this);
+            SmartLogger.Log($"- Pending Moves: {pendingMoves.Count}", LogCategory.TurnSystem, this);
+            SmartLogger.Log($"- Is Executing Moves: {isExecutingMoves}", LogCategory.TurnSystem, this);
+            SmartLogger.Log($"- Total Moves Made: {totalMovesMade}", LogCategory.TurnSystem, this);
+
+            SmartLogger.Log($"[DTSCore.HandlePhaseChanged] ========== PHASE CHANGE COMPLETE ==========", LogCategory.TurnSystem, this);
+        }
+
+        private float GetPhaseDuration(TurnPhase phase)
+        {
+            return phase switch
+            {
+                TurnPhase.Opening => openingPhaseDuration,
+                TurnPhase.MovementPhase => movementPhaseDuration,
+                TurnPhase.AuraPhase1A => auraChargingPhaseDuration,
+                TurnPhase.AuraPhase1B => auraChargingPhaseDuration,
+                TurnPhase.AuraPhase2A => auraChargingPhaseDuration,
+                TurnPhase.AuraPhase2B => auraChargingPhaseDuration,
+                TurnPhase.BufferPhase => bufferPhaseDuration,
+                _ => 0f
+            };
         }
 
         private void HandleTurnChanged(int newTurn)
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: ENTER {nameof(HandleTurnChanged)}");
+
             SmartLogger.Log($"[DokkaebiTurnSystemCore.HandleTurnChanged] Processing start-of-turn logic for Turn {newTurn}", LogCategory.TurnSystem);
 
             if (unitManager != null)
@@ -260,20 +360,30 @@ namespace Dokkaebi.Core
             pendingMoves.Clear();
             isExecutingMoves = false;
             totalMovesMade = 0;
+
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: EXIT {nameof(HandleTurnChanged)}");
         }
 
         public void CustomUpdate(float deltaTime)
         {
+            //SmartLogger.Log("[DokkaebiTurnSystemCore.CustomUpdate ENTRY]", LogCategory.TurnSystem, this);
+            //UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: ENTER {nameof(CustomUpdate)}");
+            //Debug.LogError("[DEBUG_FREEZE] F: Entered DTSCore.CustomUpdate.");
             if (turnStateContext != null)
             {
+                //Debug.LogError("[DEBUG_FREEZE] G: Before TurnStateContext.Update.");
                 turnStateContext.Update(deltaTime);
-                //SmartLogger.Log($"[TurnSystem] [TurnSystemCore] CustomUpdate Current State: {turnStateContext.GetCurrentPhase()}", LogCategory.Debug);
+                //Debug.LogError("[DEBUG_FREEZE] H: After TurnStateContext.Update.");
             }
+            //Debug.LogError("[DEBUG_FREEZE] I: Exited DTSCore.CustomUpdate.");
+            //UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: EXIT {nameof(CustomUpdate)}");
+            //SmartLogger.Log("[DokkaebiTurnSystemCore.CustomUpdate EXIT]", LogCategory.TurnSystem, this);
         }
 
         // Unit movement methods
         private bool CanUnitMove(DokkaebiUnit unit)
         {
+            //UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: ENTER {nameof(CanUnitMove)}");
             if (turnStateContext == null || !turnStateContext.AllowsMovement())
             {
                 Debug.Log($"[DokkaebiTurnSystemCore.CanUnitMove] Movement not allowed for {unit.GetUnitName()} (ID: {unit.UnitId}). turnStateContext null: {turnStateContext == null}, AllowsMovement: {turnStateContext?.AllowsMovement()}");
@@ -299,6 +409,7 @@ namespace Dokkaebi.Core
 
         private bool CanUnitUseAura(DokkaebiUnit unit)
         {
+            //UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: ENTER {nameof(CanUnitUseAura)}");
             if (turnStateContext == null)
                 return false;
 
@@ -307,6 +418,7 @@ namespace Dokkaebi.Core
 
         private void QueueMove(DokkaebiUnit unit, GridPosition targetPosition)
         {
+            //UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: ENTER {nameof(QueueMove)}");
             if (!CanUnitMove(unit))
             {
                 Debug.LogWarning($"Unit {unit.UnitId} cannot move in the current phase");
@@ -315,10 +427,13 @@ namespace Dokkaebi.Core
 
             pendingMoves[unit] = targetPosition;
             unitsActedThisPhase.Add(unit);
+
+            //UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: EXIT {nameof(QueueMove)}");
         }
 
         public void NextPhase()
         {
+            //UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: ENTER {nameof(NextPhase)}");
             if (turnStateContext != null)
             {
                 turnStateContext.TransitionToNextState();
@@ -327,10 +442,13 @@ namespace Dokkaebi.Core
             {
                 Debug.LogError("TurnStateContext is null in DokkaebiTurnSystemCore.NextPhase");
             }
+
+            //UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: EXIT {nameof(NextPhase)}");
         }
 
         public void NextTurn()
         {
+            //UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: ENTER {nameof(NextTurn)}");
             if (turnStateContext != null)
             {
                 turnStateContext.IncrementTurn();
@@ -339,6 +457,8 @@ namespace Dokkaebi.Core
             {
                 Debug.LogError("TurnStateContext is null in DokkaebiTurnSystemCore.NextTurn");
             }
+
+            //UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: EXIT {nameof(NextTurn)}");
         }
 
         /// <summary>
@@ -346,6 +466,7 @@ namespace Dokkaebi.Core
         /// </summary>
         public void RegisterUnit(DokkaebiUnit unit)
         {
+            //UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: ENTER {nameof(RegisterUnit)}");
             if (unit != null && !registeredUnits.Contains(unit))
             {
                 // Debug.Log($"[DokkaebiTurnSystemCore.RegisterUnit] Registering unit {unit.GetUnitName()} (ID: {unit.UnitId})");
@@ -353,6 +474,8 @@ namespace Dokkaebi.Core
                 // Debug.Log($"[DokkaebiTurnSystemCore.RegisterUnit] After registration, registeredUnits count: {registeredUnits.Count}");
                 // SmartLogger.Log($"Unit {unit.GetUnitName()} registered with turn system", LogCategory.TurnSystem);
             }
+
+            //UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: EXIT {nameof(RegisterUnit)}");
         }
         
         /// <summary>
@@ -360,6 +483,7 @@ namespace Dokkaebi.Core
         /// </summary>
         public void UnregisterUnit(DokkaebiUnit unit)
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: ENTER {nameof(UnregisterUnit)}");
             if (unit != null && registeredUnits.Contains(unit))
             {
                 Debug.Log($"[DokkaebiTurnSystemCore.UnregisterUnit] Unregistering unit {unit.GetUnitName()} (ID: {unit.UnitId}). Current count: {registeredUnits.Count}");
@@ -377,6 +501,8 @@ namespace Dokkaebi.Core
                     unitsActedThisPhase.Remove(unit);
                 }
             }
+
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: EXIT {nameof(UnregisterUnit)}");
         }
         
         /// <summary>
@@ -384,6 +510,7 @@ namespace Dokkaebi.Core
         /// </summary>
         private void CheckMovementCompletion()
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: ENTER {nameof(CheckMovementCompletion)}");
             TurnPhase currentPhase = GetCurrentPhase();
             if (currentPhase != TurnPhase.MovementPhase || isExecutingMoves)
             {
@@ -416,6 +543,8 @@ namespace Dokkaebi.Core
                 ExecuteAllPendingMoves();
                 turnStateContext.TransitionToNextState();
             }
+
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: EXIT {nameof(CheckMovementCompletion)}");
         }
         
         /// <summary>
@@ -423,6 +552,7 @@ namespace Dokkaebi.Core
         /// </summary>
         public bool QueueAura(DokkaebiUnit unit)
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: ENTER {nameof(QueueAura)}");
             using (new PerformanceScope("QueueAura"))
             {
                 LogTurnSystemState(); // Log turn state for debugging
@@ -492,6 +622,7 @@ namespace Dokkaebi.Core
         /// </summary>
         private void CheckAuraCompletion()
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: ENTER {nameof(CheckAuraCompletion)}");
             TurnPhase currentPhase = GetCurrentPhase();
             bool isAuraPhase = currentPhase == TurnPhase.AuraPhase1A || 
                               currentPhase == TurnPhase.AuraPhase1B || 
@@ -528,6 +659,8 @@ namespace Dokkaebi.Core
                     SmartLogger.Log($"Player {activePlayer} used {currentAuras}/{maxAuras} auras - not advancing yet", LogCategory.Ability);
                 }
             }
+
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: EXIT {nameof(CheckAuraCompletion)}");
         }
         
         /// <summary>
@@ -535,6 +668,7 @@ namespace Dokkaebi.Core
         /// </summary>
         public bool HasUnitActedThisPhase(DokkaebiUnit unit)
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: ENTER {nameof(HasUnitActedThisPhase)}");
             return unit != null && unitsActedThisPhase.Contains(unit);
         }
         
@@ -543,6 +677,7 @@ namespace Dokkaebi.Core
         /// </summary>
         public void LogTurnSystemState()
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: ENTER {nameof(LogTurnSystemState)}");
             TurnPhase phase = GetCurrentPhase();
             int turn = GetCurrentTurn();
             int activePlayer = GetActivePlayer();
@@ -562,6 +697,8 @@ namespace Dokkaebi.Core
                 int p2Required = unitStateManager.GetRequiredPlayer2Moves();
                 SmartLogger.Log($"P1 Moves: {p1Moves}/{p1Required}, P2 Moves: {p2Moves}/{p2Required}", LogCategory.TurnSystem);
             }
+
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: EXIT {nameof(LogTurnSystemState)}");
         }
         
         /// <summary>
@@ -569,6 +706,7 @@ namespace Dokkaebi.Core
         /// </summary>
         public void ExecuteAllPendingMoves()
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: ENTER {nameof(ExecuteAllPendingMoves)}");
             if (isExecutingMoves)
             {
                 SmartLogger.Log("[DokkaebiTurnSystemCore.ExecuteAllPendingMoves] Already executing moves, skipping", LogCategory.Movement);
@@ -577,6 +715,22 @@ namespace Dokkaebi.Core
 
             isExecutingMoves = true;
             SmartLogger.Log("[DokkaebiTurnSystemCore.ExecuteAllPendingMoves] Starting execution of pending moves", LogCategory.Movement);
+
+            // Call ExecutePendingMove for all AI agents before processing units
+            // Ensure EnemyAIManager.Instance is not null before accessing GetAllAgents
+            var aiAgents = EnemyAIManager.Instance?.GetAllAgents();
+            AIWorldState currentWorldState = null; // Placeholder
+            if (aiAgents != null)
+            {
+                foreach (var agent in aiAgents)
+                {
+                    if (agent != null) // Added null check for agent
+                    {
+                        agent.ExecutePendingMove(currentWorldState);
+                    }
+                }
+            }
+
 
             // Get units from UnitManager
             if (UnitManager.Instance == null)
@@ -650,6 +804,8 @@ namespace Dokkaebi.Core
             // Mark execution as complete
             isExecutingMoves = false;
             SmartLogger.Log("[DokkaebiTurnSystemCore.ExecuteAllPendingMoves] Completed execution of pending moves", LogCategory.Movement);
+
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: EXIT {nameof(ExecuteAllPendingMoves)}");
         }
         
         /// <summary>
@@ -670,6 +826,7 @@ namespace Dokkaebi.Core
         // ITurnSystem implementation
         public bool CanUnitMove(IDokkaebiUnit unit)
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: ENTER {nameof(CanUnitMove)}");
             if (unit is DokkaebiUnit dokkaebiUnit)
             {
                 return CanUnitMove(dokkaebiUnit);
@@ -679,6 +836,7 @@ namespace Dokkaebi.Core
         
         public bool CanUnitUseAura(IDokkaebiUnit unit)
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: ENTER {nameof(CanUnitUseAura)}");
             if (unit is DokkaebiUnit dokkaebiUnit)
             {
                 return CanUnitUseAura(dokkaebiUnit);
@@ -688,6 +846,7 @@ namespace Dokkaebi.Core
         
         public void QueueMove(IDokkaebiUnit unit, GridPosition targetPosition)
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: ENTER {nameof(QueueMove)}");
             if (unit is DokkaebiUnit dokkaebiUnit)
             {
                 QueueMove(dokkaebiUnit, targetPosition);
@@ -696,6 +855,7 @@ namespace Dokkaebi.Core
         
         public void EndMovementPhase()
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: ENTER {nameof(EndMovementPhase)}");
             SmartLogger.Log($"[DokkaebiTurnSystemCore.EndMovementPhase] Called. Current phase: {GetCurrentPhase()}, IsTransitionLocked: {turnStateContext?.IsTransitionLocked ?? false}", LogCategory.TurnSystem);
             
             if (turnStateContext != null && GetCurrentPhase() == TurnPhase.MovementPhase)
@@ -710,10 +870,13 @@ namespace Dokkaebi.Core
             {
                 SmartLogger.LogWarning($"[DokkaebiTurnSystemCore.EndMovementPhase] Cannot end movement phase. TurnStateContext null: {turnStateContext == null}, Current phase: {GetCurrentPhase()}", LogCategory.TurnSystem);
             }
+
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: EXIT {nameof(EndMovementPhase)}");
         }
 
         public void ForceTransitionTo(TurnPhase phase)
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: ENTER {nameof(ForceTransitionTo)}");
             if (turnStateContext != null)
             {
                 turnStateContext.ForceTransitionTo(phase);
@@ -722,6 +885,7 @@ namespace Dokkaebi.Core
 
         public bool RequestMovement(DokkaebiUnit unit, GridPosition targetPosition)
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: ENTER {nameof(RequestMovement)}");
             if (!unit || !turnStateContext.AllowsMovement() || isExecutingMoves)
             {
                 return false;
@@ -734,6 +898,7 @@ namespace Dokkaebi.Core
         
         public bool RequestAuraActivation(DokkaebiUnit unit, bool isPlayer1)
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: ENTER {nameof(RequestAuraActivation)}");
             if (!unit || !turnStateContext.AllowsAuraActivation(isPlayer1))
             {
                 return false;
@@ -752,6 +917,7 @@ namespace Dokkaebi.Core
         /// <param name="activePlayer">The active player (1 for player 1, 0 for player 2)</param>
         public void SetState(int turnNumber, TurnPhase phase, int activePlayer)
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: ENTER {nameof(SetState)}");
             if (turnStateContext == null)
             {
                 Debug.LogError("Cannot set state: TurnStateContext is null");
@@ -769,10 +935,13 @@ namespace Dokkaebi.Core
             {
                 SmartLogger.Log($"Turn system state set: Turn {turnNumber}, Phase {phase}, Active Player {activePlayer}", LogCategory.TurnSystem);
             }
+
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: EXIT {nameof(SetState)}");
         }
 
         public float GetRemainingPhaseTime()
         {
+            //UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: ENTER {nameof(GetRemainingPhaseTime)}");
             return turnStateContext != null ? turnStateContext.GetRemainingTime() : 0f;
         }
 
@@ -781,6 +950,7 @@ namespace Dokkaebi.Core
         /// </summary>
         public void ResetTurnSystem()
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: ENTER {nameof(ResetTurnSystem)}");
             // Clear all collections
             pendingMoves.Clear();
             unitsActedThisPhase.Clear();
@@ -821,6 +991,8 @@ namespace Dokkaebi.Core
             {
                 SmartLogger.Log("Turn system has been reset to initial state", LogCategory.TurnSystem);
             }
+
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] DTSCore: EXIT {nameof(ResetTurnSystem)}");
         }
     }
 }

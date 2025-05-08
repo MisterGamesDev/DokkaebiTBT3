@@ -43,6 +43,7 @@ namespace Dokkaebi.Core
         
         void Start()
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] GameController: ENTER {nameof(Start)}");
             SmartLogger.Log("[GameController.Start] Method entered.", LogCategory.Game, this);
 
             // Initialization logic moved to InitializeGame()
@@ -51,6 +52,7 @@ namespace Dokkaebi.Core
             InitializeGame();
 
             SmartLogger.Log("[GameController.Start] Method exiting.", LogCategory.Game, this);
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] GameController: EXIT {nameof(Start)}");
         }
         
         void OnDestroy() {
@@ -219,16 +221,18 @@ namespace Dokkaebi.Core
 
         private void SpawnPlayerUnit(UnitSpawnConfig unitInfo)
         {
-            var gridPosition = unitInfo.spawnPosition;
-            SmartLogger.Log($"Spawning player: {unitInfo.unitDefinition.displayName} at {gridPosition}", LogCategory.Game, this);
-            UnitManager.Instance.SpawnUnit(unitInfo.unitDefinition, gridPosition, true);
+            var gridPosition = GridPosition.FromVector2Int(unitInfo.spawnPosition);
+            SmartLogger.Log($"[GAMECONTROLLER] Requesting UnitManager to spawn Player Unit: {unitInfo.unitDefinition.displayName} at {gridPosition}.", LogCategory.Unit, this);
+            var spawnedUnit = UnitManager.Instance.SpawnAndRegisterUnit(unitInfo.unitDefinition, gridPosition, 1); // TeamId 1 for player
+            SmartLogger.Log($"[GAMECONTROLLER] UnitManager spawned Player Unit: ID={spawnedUnit?.UnitId ?? -1}, Name={spawnedUnit?.DisplayName ?? "NULL"}, TeamId={spawnedUnit?.TeamId ?? -1}", LogCategory.Unit, this);
         }
 
         private void SpawnEnemyUnit(UnitSpawnConfig unitInfo)
         {
-            var gridPosition = unitInfo.spawnPosition;
-            SmartLogger.Log($"Spawning enemy: {unitInfo.unitDefinition.displayName} at {gridPosition}", LogCategory.Game, this);
-            UnitManager.Instance.SpawnUnit(unitInfo.unitDefinition, gridPosition, false);
+            var gridPosition = GridPosition.FromVector2Int(unitInfo.spawnPosition);
+            SmartLogger.Log($"[GAMECONTROLLER] Requesting UnitManager to spawn Enemy Unit: {unitInfo.unitDefinition.displayName} at {gridPosition}.", LogCategory.Unit, this);
+            var spawnedUnit = UnitManager.Instance.SpawnAndRegisterUnit(unitInfo.unitDefinition, gridPosition, 2); // TeamId 2 for enemy
+            SmartLogger.Log($"[GAMECONTROLLER] UnitManager spawned Enemy Unit: ID={spawnedUnit?.UnitId ?? -1}, Name={spawnedUnit?.DisplayName ?? "NULL"}, TeamId={spawnedUnit?.TeamId ?? -1}", LogCategory.Unit, this);
         }
 
         private void SpawnUnits()
@@ -254,6 +258,7 @@ namespace Dokkaebi.Core
 
         public void InitializeGame()
         {
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] GameController: ENTER {nameof(InitializeGame)}");
             SmartLogger.Log("[GameController.InitializeGame] Method entered.", LogCategory.Game, this);
             
             // 1. Null check critical managers (Assigned in Awake)
@@ -272,49 +277,13 @@ namespace Dokkaebi.Core
             // 2. Spawn Units
             SmartLogger.Log("[GameController.InitializeGame] Spawning units...", LogCategory.Game, this);
             // Ensure DataManager and UnitManager instances are available
-            if (DataManager.Instance != null && unitManager != null) // Use singleton and class field
+            if (DataManager.Instance != null && unitManager != null)
             {
-                UnitSpawnData spawnData = DataManager.Instance.GetUnitSpawnData(); // Use singleton
-                if (spawnData != null) // Check if spawnData is not null
-                {
-                    // Spawn player units
-                    foreach (var unitInfo in spawnData.playerUnitSpawns)
-                    {
-                        if (unitInfo.unitDefinition != null)
-                        {
-                            var gridPosition = GridPosition.FromVector2Int(unitInfo.spawnPosition);
-                            unitManager.SpawnUnit(unitInfo.unitDefinition, gridPosition, true); // Use class field
-                            SmartLogger.Log($"Spawning player: {unitInfo.unitDefinition.displayName} at {gridPosition}", LogCategory.Game, this);
-                        }
-                        else
-                        {
-                            SmartLogger.LogWarning("[GameController.InitializeGame] Player unit spawn configuration is missing unit definition!", LogCategory.Game, this);
-                        }
-                    }
-
-                    // Spawn enemy units
-                    foreach (var unitInfo in spawnData.enemyUnitSpawns)
-                    {
-                        if (unitInfo.unitDefinition != null)
-                        {
-                            var gridPosition = GridPosition.FromVector2Int(unitInfo.spawnPosition);
-                            unitManager.SpawnUnit(unitInfo.unitDefinition, gridPosition, false); // Use class field
-                            SmartLogger.Log($"Spawning enemy: {unitInfo.unitDefinition.displayName} at {gridPosition}", LogCategory.Game, this);
-                        }
-                        else
-                        {
-                             SmartLogger.LogWarning("[GameController.InitializeGame] Enemy unit spawn configuration is missing unit definition!", LogCategory.Game, this);
-                        }
-                    }
-                }
-                else
-                {
-                    SmartLogger.LogError("[GameController.InitializeGame] No UnitSpawnData assigned in DataManager.Instance!", LogCategory.Game, this); // Updated log
-                }
+                SpawnUnits();
             }
             else
             {
-                SmartLogger.LogError($"[GameController.InitializeGame] Cannot spawn units: DataManager.Instance is null ({DataManager.Instance == null}) or unitManager is null ({unitManager == null})!", LogCategory.Game, this); // Updated log
+                SmartLogger.LogError($"[GameController.InitializeGame] Cannot spawn units: DataManager.Instance is null ({DataManager.Instance == null}) or unitManager is null ({unitManager == null})!", LogCategory.Game, this);
             }
 
             // 3. Subscribe Events
@@ -338,9 +307,18 @@ namespace Dokkaebi.Core
 
             // 6. Start the Turn System
             SmartLogger.Log("[GameController.InitializeGame] Starting the turn system...", LogCategory.Game, this);
-            turnSystem.NextPhase(); // Use TurnSystem field
+            if (turnSystem != null)
+            {
+                SmartLogger.Log($"[GameController.InitializeGame] BEFORE turnSystem.NextPhase(). Current DTSCore Phase: {turnSystem.GetCurrentPhase()}, Current Turn: {turnSystem.GetCurrentTurn()}", LogCategory.Game, this);
+            }
+            else
+            {
+                SmartLogger.LogError("[GameController.InitializeGame] BEFORE turnSystem.NextPhase(). turnSystem is NULL!", LogCategory.Game, this);
+            }
+            //turnSystem.NextPhase(); // Use TurnSystem field
 
             SmartLogger.Log("[GameController.InitializeGame] Initialization complete.", LogCategory.Game, this);
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] GameController: EXIT {nameof(InitializeGame)}");
         }
     }
 }

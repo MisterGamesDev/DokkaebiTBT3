@@ -5,6 +5,7 @@ using Dokkaebi.Units;
 using Dokkaebi.Interfaces;
 using Dokkaebi.Utilities;
 using Dokkaebi.Common;
+using Dokkaebi.Core;
 
 namespace Dokkaebi.Core.Networking.Commands
 {
@@ -80,121 +81,185 @@ namespace Dokkaebi.Core.Networking.Commands
             TargetPosition = new Vector2Int(x, y);
         }
 
+        /// <summary>
+        /// Validates if this move command is currently executable.
+        /// Checks unit ownership, target position validity, movement range, etc.
+        /// </summary>
+        /// <returns>True if the command is valid, false otherwise.</returns>
         public override bool Validate()
         {
-            Debug.Log($"[MoveCommand.Validate] Starting validation for Unit {UnitId} to position {TargetPosition}");
-            
-            var unitManager = Object.FindObjectOfType<UnitManager>();
+            SmartLogger.Log($"[MoveCommand.Validate] ========== START VALIDATION ==========", LogCategory.Movement, null);
+            SmartLogger.Log($"[MoveCommand.Validate] ENTRY for Unit {UnitId} to position {TargetPosition}", LogCategory.Movement, null);
+
+            // Get required managers
+            var unitManager = UnitManager.Instance;
+            var turnSystem = DokkaebiTurnSystemCore.Instance;
+            var gridManager = GridManager.Instance;
+
+            // Check managers
             if (unitManager == null)
             {
-                Debug.LogError("[MoveCommand.Validate] Cannot validate: UnitManager not found");
+                SmartLogger.LogError($"[MoveCommand.Validate] FAILED: UnitManager not found!", LogCategory.Movement, null);
+                return false;
+            }
+            if (turnSystem == null)
+            {
+                SmartLogger.LogError($"[MoveCommand.Validate] FAILED: DokkaebiTurnSystemCore not found!", LogCategory.Movement, null);
+                return false;
+            }
+            if (gridManager == null)
+            {
+                SmartLogger.LogError($"[MoveCommand.Validate] FAILED: GridManager not found!", LogCategory.Movement, null);
                 return false;
             }
 
+            // 1. Check if the unit exists and is alive
             DokkaebiUnit unit = unitManager.GetUnitById(UnitId);
             if (unit == null)
             {
-                Debug.LogError($"[MoveCommand.Validate] Cannot move: Unit {UnitId} not found");
+                SmartLogger.LogError($"[MoveCommand.Validate] FAILED: Unit {UnitId} not found!", LogCategory.Movement, null);
                 return false;
             }
-
-            // Check if the player owns this unit
-            if (!unit.IsPlayer())
+            if (!unit.IsAlive)
             {
-                Debug.LogError($"[MoveCommand.Validate] Cannot move: Unit {UnitId} not owned by player");
+                SmartLogger.LogError($"[MoveCommand.Validate] FAILED: Unit {UnitId} is not alive!", LogCategory.Movement, null);
                 return false;
             }
 
-            // Check 1: Check if it's the movement phase
-            var turnSystemCore = Object.FindObjectOfType<DokkaebiTurnSystemCore>();
-            bool canUnitMove = turnSystemCore != null && turnSystemCore.CanUnitMove(unit);
-            Debug.Log($"[MoveCommand.Validate] Check 1: turnSystemCore.CanUnitMove({unit?.GetUnitName() ?? "NULL"}) = {canUnitMove}. Current Phase: {turnSystemCore?.CurrentPhase ?? TurnPhase.GameOver}");
-            if (!canUnitMove)
+            // Log unit state
+            SmartLogger.Log($"[MoveCommand.Validate] Unit State:", LogCategory.Movement, unit.GameObject);
+            SmartLogger.Log($"- Unit ID: {UnitId}", LogCategory.Movement, unit.GameObject);
+            SmartLogger.Log($"- Team ID: {unit.TeamId}", LogCategory.Movement, unit.GameObject);
+            SmartLogger.Log($"- Is Player Controlled: {unit.IsPlayerControlled}", LogCategory.Movement, unit.GameObject);
+            SmartLogger.Log($"- Current Position: {unit.CurrentGridPosition}", LogCategory.Movement, unit.GameObject);
+            SmartLogger.Log($"- Movement Range: {unit.MovementRange}", LogCategory.Movement, unit.GameObject);
+
+            // Log turn system state
+            SmartLogger.Log($"[MoveCommand.Validate] Turn System State:", LogCategory.Movement);
+            SmartLogger.Log($"- Current Phase: {turnSystem.CurrentPhase}", LogCategory.Movement);
+            SmartLogger.Log($"- Active Player ID: {turnSystem.ActivePlayerId}", LogCategory.Movement);
+
+            // 2. Check phase and ownership validation
+            bool isPlayerUnit = unit.IsPlayerControlled;
+            bool isAIUnit = !unit.IsPlayerControlled;
+            bool isMovementPhase = turnSystem.CurrentPhase == TurnPhase.MovementPhase;
+            bool isCorrectTeamTurn = unit.TeamId == turnSystem.ActivePlayerId;
+
+            SmartLogger.Log($"[MoveCommand.Validate] Phase/Ownership Check:", LogCategory.Movement);
+            SmartLogger.Log($"- Is Player Unit: {isPlayerUnit}", LogCategory.Movement);
+            SmartLogger.Log($"- Is AI Unit: {isAIUnit}", LogCategory.Movement);
+            SmartLogger.Log($"- Is Movement Phase: {isMovementPhase}", LogCategory.Movement);
+            SmartLogger.Log($"- Is Correct Team's Turn: {isCorrectTeamTurn}", LogCategory.Movement);
+
+            // REVISED LOGIC: Allow any unit to act in MovementPhase
+            bool canActInPhase = false;
+            if (isMovementPhase)
             {
-                Debug.LogError($"[MoveCommand.Validate] Validation failed at Check 1: CanUnitMove returned false.");
-                return false;
+                canActInPhase = true; // Any unit can queue a move in MovementPhase
             }
-
-            // Check 2: Check if the unit has already moved
-            if (unit.HasPendingMovement)
+            else
             {
-                Debug.LogError($"[MoveCommand.Validate] Validation failed at Check 2: HasPendingMovement returned true.");
-                return false;
+                SmartLogger.LogWarning($"[MoveCommand.Validate] Move command received in non-MovementPhase ({turnSystem.CurrentPhase}). This should not happen.", LogCategory.Movement, null);
+                return false; // Move command should only be valid in MovementPhase
             }
 
-            // Check 3: Get and Log Valid Moves List
-            var validMoves = unit.GetValidMovePositions();
-            Debug.Log($"[MoveCommand.Validate] IMMEDIATELY after call: validMoves variable is {(validMoves == null ? "NULL" : "NOT NULL")}, Count = {(validMoves?.Count.ToString() ?? "N/A")}");
-            GridPosition targetGridPos = DokkaebiGridConverter.Vector2IntToGrid(TargetPosition);
-            System.Text.StringBuilder sb = StringBuilderPool.Get();
-            sb.Append($"[MoveCommand.Validate] Check 3: Checking Target {targetGridPos} against list ({validMoves.Count} positions):");
-            foreach(var pos in validMoves) { sb.Append($" {pos}"); }
-            //Debug.Log(StringBuilderPool.GetStringAndReturn(sb));
-
-            // Check 4: Contains Check
-            bool targetIsValid = validMoves.Contains(targetGridPos);
-            Debug.Log($"[MoveCommand.Validate] Check 4: validMoves.Contains(targetGridPos) = {targetIsValid}");
-            if (!targetIsValid)
+            if (!canActInPhase)
             {
-                Debug.LogError($"[MoveCommand.Validate] Validation failed at Check 4: Target {targetGridPos} not in valid moves list.");
+                SmartLogger.LogError($"[MoveCommand.Validate] FAILED: Move not allowed in phase {turnSystem.CurrentPhase}. Unit Team: {unit.TeamId}, Active Player: {turnSystem.ActivePlayerId}", LogCategory.Movement, null);
                 return false;
             }
 
-            Debug.Log($"[MoveCommand.Validate] Validation PASSED for Unit {UnitId} moving to {targetGridPos}.");
+            // 3. Check target position validity
+            var targetGridPos = GridManager.Vector2IntToGrid(TargetPosition);
+            
+            // Check grid bounds
+            bool isInBounds = gridManager.IsValidGridPosition(targetGridPos);
+            SmartLogger.Log($"[MoveCommand.Validate] Target Position Check:", LogCategory.Movement);
+            SmartLogger.Log($"- Target Position: {targetGridPos}", LogCategory.Movement);
+            SmartLogger.Log($"- Is In Bounds: {isInBounds}", LogCategory.Movement);
+            
+            if (!isInBounds)
+            {
+                SmartLogger.LogError($"[MoveCommand.Validate] FAILED: Target position {targetGridPos} is out of bounds", LogCategory.Movement, null);
+                return false;
+            }
+
+            // Check walkability
+            bool isWalkable = gridManager.IsWalkable(targetGridPos, unit);
+            SmartLogger.Log($"- Is Walkable: {isWalkable}", LogCategory.Movement);
+            
+            if (!isWalkable)
+            {
+                SmartLogger.LogError($"[MoveCommand.Validate] FAILED: Target position {targetGridPos} is not walkable", LogCategory.Movement, null);
+                return false;
+            }
+
+            // Check occupancy
+            bool isOccupied = gridManager.IsPositionOccupied(targetGridPos);
+            SmartLogger.Log($"- Is Occupied: {isOccupied}", LogCategory.Movement);
+            
+            if (isOccupied)
+            {
+                SmartLogger.LogError($"[MoveCommand.Validate] FAILED: Target position {targetGridPos} is occupied", LogCategory.Movement, null);
+                return false;
+            }
+
+            // Check movement range
+            int distanceToTarget = GridPosition.GetManhattanDistance(unit.CurrentGridPosition, targetGridPos);
+            bool isInRange = distanceToTarget <= unit.MovementRange;
+            SmartLogger.Log($"- Distance to Target: {distanceToTarget}", LogCategory.Movement);
+            SmartLogger.Log($"- Is In Range: {isInRange}", LogCategory.Movement);
+            
+            if (!isInRange)
+            {
+                SmartLogger.LogError($"[MoveCommand.Validate] FAILED: Target position {targetGridPos} is out of range (Distance: {distanceToTarget}, Range: {unit.MovementRange})", LogCategory.Movement, null);
+                return false;
+            }
+
+            // Check pathfinding
+            var pathfindingInfo = gridManager as IPathfindingGridInfo;
+            bool hasPath = pathfindingInfo != null && pathfindingInfo.IsWalkable(targetGridPos, unit);
+            SmartLogger.Log($"- Has Valid Path: {hasPath}", LogCategory.Movement);
+            
+            if (!hasPath)
+            {
+                SmartLogger.LogError($"[MoveCommand.Validate] FAILED: No valid path to target position {targetGridPos}", LogCategory.Movement, null);
+                return false;
+            }
+
+            // All checks passed
+            SmartLogger.Log($"[MoveCommand.Validate] ========== VALIDATION PASSED ==========", LogCategory.Movement, null);
             return true;
         }
 
         public override void Execute()
         {
-            // --- ADD LOG ---
-            Debug.Log($"[MoveCommand.Execute] START - UnitID: {UnitId}, TargetPos: {TargetPosition}");
+            SmartLogger.Log($"[MoveCommand.Execute] ENTRY for Unit {UnitId} to position {TargetPosition}", LogCategory.Movement, null);
 
-            // --- Log FindObjectOfType ---
-            Debug.Log("[MoveCommand.Execute] Finding UnitManager...");
             var unitManager = Object.FindObjectOfType<UnitManager>();
-            Debug.Log($"[MoveCommand.Execute] Found UnitManager? {(unitManager != null)}");
             if (unitManager == null)
             {
-                // Using Debug.LogError for clarity on potential exit
-                Debug.LogError("[MoveCommand.Execute] Cannot execute: UnitManager not found!");
+                SmartLogger.LogError($"[MoveCommand.Execute] UnitManager not found! Cannot execute move.", LogCategory.Movement, null);
                 return;
             }
 
-            // --- Log GetUnitById ---
-            Debug.Log($"[MoveCommand.Execute] Getting Unit {UnitId} from UnitManager...");
             DokkaebiUnit unit = unitManager.GetUnitById(UnitId);
-            Debug.Log($"[MoveCommand.Execute] Found Unit? {(unit != null)}. Unit Name: {(unit?.GetUnitName() ?? "N/A")}");
             if (unit == null)
             {
-                // Using Debug.LogError for clarity
-                Debug.LogError($"[MoveCommand.Execute] Cannot execute: Unit {UnitId} not found!");
+                SmartLogger.LogError($"[MoveCommand.Execute] Unit with ID {UnitId} not found. Cannot execute move.", LogCategory.Movement, null);
                 return;
             }
+            SmartLogger.Log($"[MoveCommand.Execute] Unit {UnitId} found: {unit.GetUnitName()}", LogCategory.Movement, unit.GameObject);
 
-            // --- Log Conversion ---
-            Debug.Log($"[MoveCommand.Execute] Converting TargetPosition {TargetPosition} to GridPosition...");
-            GridPosition targetGridPos = DokkaebiGridConverter.Vector2IntToGrid(TargetPosition);
-            Debug.Log($"[MoveCommand.Execute] Conversion result: {targetGridPos}");
+            // Convert TargetPosition (Vector2Int) to GridPosition
+            GridPosition targetGridPos = GridManager.Vector2IntToGrid(TargetPosition);
+            SmartLogger.Log($"[MoveCommand.Execute] Calling SetTargetPosition for unit {UnitId} with target {targetGridPos}", LogCategory.Movement, unit.GameObject);
+            unit.SetTargetPosition(targetGridPos);
+            SmartLogger.Log($"[MoveCommand.Execute] Returned from SetTargetPosition for unit {UnitId}", LogCategory.Movement, unit.GameObject);
 
-            // --- Log SetTargetPosition Call ---
-            Debug.Log($"[MoveCommand.Execute] Calling unit.SetTargetPosition({targetGridPos})...");
-            try // Add try-catch for safety
-            {
-                unit.SetTargetPosition(targetGridPos);
-                Debug.Log("[MoveCommand.Execute] unit.SetTargetPosition() completed.");
-            }
-            catch (System.Exception ex)
-            {
-                Debug.LogError($"[MoveCommand.Execute] EXCEPTION during unit.SetTargetPosition(): {ex.Message}\n{ex.StackTrace}");
-                return; // Stop execution if SetTargetPosition fails
-            }
+            // If there are other movement initiation steps, log them here (none in current logic)
 
-            // --- Log Final DebugLog ---
-            // Keep the original DebugLog call using the base class method for comparison
-            Debug.Log("[MoveCommand.Execute] Calling internal DebugLog...");
-            DebugLog($"Set pending movement for unit {UnitId} to position {TargetPosition}"); // Uses internal DebugLog
-            Debug.Log("[MoveCommand.Execute] FINISHED");
-            // --- END ADD LOGS ---
+            SmartLogger.Log($"[MoveCommand.Execute] EXIT for Unit {UnitId}", LogCategory.Movement, unit.GameObject);
         }
     }
 } 

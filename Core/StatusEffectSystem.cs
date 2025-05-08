@@ -14,32 +14,53 @@ namespace Dokkaebi.Core
     /// </summary>
     public static class StatusEffectSystem
     {
+        // Add a static constructor here
+        static StatusEffectSystem()
+        {
+            // Add a log at the very beginning of the static constructor
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] --- ENTER StatusEffectSystem Static Constructor: {Time.frameCount} ---");
+
+            // Add logging for any static field initializations if you have them
+            // Example:
+            // UnityEngine.Debug.LogError($"[DEBUG_FREEZE] StatusEffectSystem Static Constructor: Initializing static field X.");
+            // public static int staticFieldX = InitializeStaticFieldX();
+
+            // Add a log at the very end of the static constructor
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] --- EXIT StatusEffectSystem Static Constructor: {Time.frameCount} ---");
+        }
+
         /// <summary>
         /// Apply a status effect to a unit
         /// </summary>
         public static void ApplyStatusEffect(IDokkaebiUnit targetUnit, StatusEffectData effectData, int duration = -1, IDokkaebiUnit sourceUnit = null, int? linkedUnitId = null)
         {
+            SmartLogger.Log($"[StatusEffectSystem.ApplyStatusEffect ENTRY] Effect: {effectData?.displayName ?? "NULL"}, Target: {targetUnit?.DisplayName ?? "NULL"}", LogCategory.Ability, null);
             // --- This should be the very first line ---
-            SmartLogger.LogError($"[DEBUG_LOOP] --- ENTER ApplyStatusEffect: {Time.frameCount} ---", LogCategory.Debug);
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] --- ENTER ApplyStatusEffect: {Time.frameCount} ---");
             // --- ADDED GRANULAR LOGS ---
-            SmartLogger.LogError($"[DEBUG_LOOP] ApplyStatusEffect - Line 1: Checking targetUnit and effectData for null. targetUnit null: {targetUnit == null}, effectData null: {effectData == null}.", LogCategory.Debug);
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ApplyStatusEffect - Line 1: Checking targetUnit and effectData for null. targetUnit null: {targetUnit == null}, effectData null: {effectData == null}.");
             if (targetUnit == null || effectData == null)
             {
-                SmartLogger.LogError($"[DEBUG_LOOP] ApplyStatusEffect - Line 2: targetUnit or effectData is null. Aborting. targetUnit null: {targetUnit == null}, effectData null: {effectData == null}.", LogCategory.Debug);
+                UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ApplyStatusEffect - Line 2: targetUnit or effectData is null. Aborting. targetUnit null: {targetUnit == null}, effectData null: {effectData == null}.");
                 return; // Abort if null
             }
-            SmartLogger.LogError($"[DEBUG_LOOP] ApplyStatusEffect - Line 3: Creating new StatusEffectInstance.", LogCategory.Debug);
+
+            // Add log just before creating the new StatusEffectInstance
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ApplyStatusEffect - Line 3a: About to create new StatusEffectInstance for effect '{effectData.displayName}'.");
             var newEffect = new StatusEffectInstance(
                 effectData,
                 duration >= 0 ? duration : effectData.duration,
                 sourceUnit?.UnitId ?? -1
             );
-            SmartLogger.LogError($"[DEBUG_LOOP] ApplyStatusEffect - Line 4: New StatusEffectInstance created. Duration: {newEffect.RemainingDuration}, Source ID: {newEffect.SourceUnitId}.", LogCategory.Debug);
+            // Add log just after creating the new StatusEffectInstance
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ApplyStatusEffect - Line 3b: New StatusEffectInstance created. Duration: {newEffect.RemainingDuration}, Source ID: {newEffect.SourceUnitId}.");
+
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ApplyStatusEffect - Line 4: New StatusEffectInstance created. Duration: {newEffect.RemainingDuration}, Source ID: {newEffect.SourceUnitId}.");
             if (linkedUnitId.HasValue)
             {
-                SmartLogger.LogError($"[DEBUG_LOOP] ApplyStatusEffect - Line 5: linkedUnitId has value {linkedUnitId.Value}. Setting on new effect.", LogCategory.Debug);
+                UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ApplyStatusEffect - Line 5: linkedUnitId has value {linkedUnitId.Value}. Setting on new effect.");
                 newEffect.linkedUnitId = linkedUnitId.Value;
-                SmartLogger.LogError($"[DEBUG_LOOP] ApplyStatusEffect - Line 6: linkedUnitId set on new effect instance: {newEffect.linkedUnitId}.", LogCategory.Debug);
+                UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ApplyStatusEffect - Line 6: linkedUnitId set on new effect instance: {newEffect.linkedUnitId}.");
             }
             // --- END ADDED ---
 
@@ -77,6 +98,7 @@ namespace Dokkaebi.Core
             // Handle stacking logic
             if (effectData.isStackable)
             {
+                SmartLogger.Log($"Effect '{effectData.displayName}' is stackable.", LogCategory.Ability, null);
                 // 2. Log inside the stacking logic block
                 if (effectData?.effectType == StatusEffectType.Movement)
                 {
@@ -94,6 +116,7 @@ namespace Dokkaebi.Core
                     {
                         // Refresh the duration of the oldest stack
                         oldestEffect.RemainingDuration = duration >= 0 ? duration : effectData.duration;
+                        SmartLogger.Log($"Refreshed duration of oldest stack for effect '{effectData.displayName}' on {targetUnit.DisplayName}.", LogCategory.Ability, null);
                         SmartLogger.Log($"Max stacks reached for {effectData.displayName} on {targetUnit.DisplayName}, refreshed oldest stack duration", LogCategory.General);
                     }
                 }
@@ -101,17 +124,29 @@ namespace Dokkaebi.Core
                 {
                     // ADDING LOG (stackable)
                     SmartLogger.Log($"[ApplyStatusEffect ADDING] Effect: {effectData?.displayName ?? "<null>"}, Target: {targetUnit?.DisplayName ?? "<null>"}\nStackTrace:\n{UnityEngine.StackTraceUtility.ExtractStackTrace()}", LogCategory.Ability);
+                    SmartLogger.Log($"About to call AddStatusEffect for stackable effect '{effectData.displayName}' on {targetUnit.DisplayName}.", LogCategory.Ability, null);
+                    // Add log just before calling targetUnit.AddStatusEffect
+                    UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ApplyStatusEffect - Stacking block. About to call targetUnit.AddStatusEffect for unit '{targetUnit?.DisplayName ?? "NULL"}' for effect '{newEffect?.StatusEffectType ?? StatusEffectType.None}'.");
                     // Add new stack
                     targetUnit.AddStatusEffect(newEffect);
+                    SmartLogger.Log($"Returned from AddStatusEffect for stackable effect '{effectData.displayName}' on {targetUnit.DisplayName}.", LogCategory.Ability, null);
+                    // Add log just after calling targetUnit.AddStatusEffect
+                    UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ApplyStatusEffect - Stacking block. Returned from targetUnit.AddStatusEffect for unit '{targetUnit?.DisplayName ?? "NULL"}'.");
+
                     if (targetUnit is DokkaebiUnit concreteUnit)
                     {
+                        // Add log just before calling RaiseStatusEffectApplied
+                        UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ApplyStatusEffect - Stacking block. About to call RaiseStatusEffectApplied for unit '{concreteUnit.DisplayName}' for effect '{newEffect?.StatusEffectType ?? StatusEffectType.None}'.");
                         concreteUnit.RaiseStatusEffectApplied(newEffect);
+                        // Add log just after calling RaiseStatusEffectApplied
+                        UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ApplyStatusEffect - Stacking block. Returned from RaiseStatusEffectApplied for unit '{concreteUnit.DisplayName}'.");
                     }
                     SmartLogger.Log($"Added new stack of {effectData.displayName} to {targetUnit.DisplayName} ({existingEffects.Count + 1}/{effectData.maxStacks} stacks)", LogCategory.General);
                 }
             }
             else
             {
+                SmartLogger.Log($"Effect '{effectData.displayName}' is NOT stackable.", LogCategory.Ability, null);
                 // 3. Log inside the non-stackable logic block
                 if (effectData?.effectType == StatusEffectType.Movement)
                 {
@@ -127,27 +162,45 @@ namespace Dokkaebi.Core
                 {
                     // Refresh duration of existing effect
                     existingEffect.RemainingDuration = duration >= 0 ? duration : effectData.duration;
+                    SmartLogger.Log($"Refreshed duration of non-stackable effect '{effectData.displayName}' on {targetUnit.DisplayName}.", LogCategory.Ability, null);
                     SmartLogger.Log($"Refreshed duration of {effectData.displayName} on {targetUnit.DisplayName}", LogCategory.General);
                 }
                 else
                 {
                     // ADDING LOG (non-stackable)
                     SmartLogger.Log($"[ApplyStatusEffect ADDING] Effect: {effectData?.displayName ?? "<null>"}, Target: {targetUnit?.DisplayName ?? "<null>"}\nStackTrace:\n{UnityEngine.StackTraceUtility.ExtractStackTrace()}", LogCategory.Ability);
+                    SmartLogger.Log($"About to call AddStatusEffect for non-stackable effect '{effectData.displayName}' on {targetUnit.DisplayName}.", LogCategory.Ability, null);
+                    // Add log just before calling targetUnit.AddStatusEffect
+                    UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ApplyStatusEffect - Non-stacking block. About to call targetUnit.AddStatusEffect for unit '{targetUnit?.DisplayName ?? "NULL"}' for effect '{newEffect?.StatusEffectType ?? StatusEffectType.None}'.");
                     // Apply new effect
                     targetUnit.AddStatusEffect(newEffect);
+                    SmartLogger.Log($"Returned from AddStatusEffect for non-stackable effect '{effectData.displayName}' on {targetUnit.DisplayName}.", LogCategory.Ability, null);
+                    // Add log just after calling targetUnit.AddStatusEffect
+                    UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ApplyStatusEffect - Non-stacking block. Returned from targetUnit.AddStatusEffect for unit '{targetUnit?.DisplayName ?? "NULL"}'.");
+
                     if (targetUnit is DokkaebiUnit concreteUnit)
                     {
+                        // Add log just before calling RaiseStatusEffectApplied
+                        UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ApplyStatusEffect - Non-stacking block. About to call RaiseStatusEffectApplied for unit '{concreteUnit.DisplayName}' for effect '{newEffect?.StatusEffectType ?? StatusEffectType.None}'.");
                         concreteUnit.RaiseStatusEffectApplied(newEffect);
+                        // Add log just after calling RaiseStatusEffectApplied
+                        UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ApplyStatusEffect - Non-stacking block. Returned from RaiseStatusEffectApplied for unit '{concreteUnit.DisplayName}'.");
                     }
                     SmartLogger.Log($"Applied new effect {effectData.displayName} to {targetUnit.DisplayName}", LogCategory.General);
                 }
             }
 
+            // Add log just before calling ApplyEffectImmediateImpact
+            SmartLogger.Log($"About to call ApplyEffectImmediateImpact for effect '{effectData.displayName}' on {targetUnit.DisplayName}.", LogCategory.Ability, null);
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ApplyStatusEffect - About to call ApplyEffectImmediateImpact for unit '{targetUnit?.DisplayName ?? "NULL"}' for effect '{effectData?.displayName ?? "NULL"}'.");
             // Apply immediate effects if any
             ApplyEffectImmediateImpact(targetUnit, effectData);
+            SmartLogger.Log($"Returned from ApplyEffectImmediateImpact for effect '{effectData.displayName}' on {targetUnit.DisplayName}.", LogCategory.Ability, null);
+            // Add log just after calling ApplyEffectImmediateImpact
+            UnityEngine.Debug.LogError($"[DEBUG_FREEZE] ApplyStatusEffect - Returned from ApplyEffectImmediateImpact for unit '{targetUnit?.DisplayName ?? "NULL"}'.");
 
             // Add at the very end of the method
-            SmartLogger.LogError($"[DEBUG_LOOP] EXIT ApplyStatusEffect: Effect={effectData?.displayName ?? "NULL"}, Target={targetUnit?.DisplayName ?? "NULL"}", LogCategory.Debug);
+            SmartLogger.Log($"[StatusEffectSystem.ApplyStatusEffect EXIT] Effect: {effectData?.displayName ?? "NULL"}, Target: {targetUnit?.DisplayName ?? "NULL"}", LogCategory.Ability, null);
         }
 
         /// <summary>

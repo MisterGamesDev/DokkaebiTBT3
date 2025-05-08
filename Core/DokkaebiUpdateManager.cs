@@ -120,7 +120,6 @@ namespace Dokkaebi.Core
                     SmartLogger.LogError($"[UpdateManager.Update] Error in CustomUpdate for '{observerName}' (InstanceID: {instanceId}): {SmartLogger.FormatException(e)}", LogCategory.Performance, this);
                 }
             }
-
             isUpdating = false;
         }
         
@@ -259,6 +258,7 @@ namespace Dokkaebi.Core
                 if (!updateObservers.Contains(observer) && !pendingAddUpdateObservers.Contains(observer))
                 {
                     pendingAddUpdateObservers.Add(observer);
+                    SmartLogger.Log($"[DEBUG_FREEZE] Registered observer pending: {observer.GetType().Name}.", LogCategory.Performance, this);
                     SmartLogger.Log($"[UpdateManager.Register] Added '{observer.GetType().Name}' to PENDING ADD list.", LogCategory.Performance, this);
                 }
             }
@@ -267,6 +267,7 @@ namespace Dokkaebi.Core
                 if (!updateObservers.Contains(observer))
                 {
                     updateObservers.Add(observer);
+                    SmartLogger.Log($"[DEBUG_FREEZE] Registered observer directly: {observer.GetType().Name}.", LogCategory.Performance, this);
                     SmartLogger.Log($"[UpdateManager.Register] Added '{observer.GetType().Name}' directly to MAIN list.", LogCategory.Performance, this);
                 }
             }
